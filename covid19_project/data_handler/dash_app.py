@@ -3,8 +3,7 @@ from django_plotly_dash import DjangoDash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.express as px
-from load_data import county_data, state_data, us_data
-
+from .load_data import county_data, state_data, us_data
 # Constants
 TITLE = "COVID-19 Interactive Dashboard"
 CENTER_STYLE = {'textAlign': 'center'}
