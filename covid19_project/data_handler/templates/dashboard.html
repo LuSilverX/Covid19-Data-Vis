@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>COVID-19 Dashboard</title>
+    {% load plotly_dash %}
+    {% plotly_header %}
+</head>
+<body>
+    <div>
+        {% plotly_app name="CovidDashboard" %}
+    </div>
+    {% plotly_footer %}
+</body>
+</html>

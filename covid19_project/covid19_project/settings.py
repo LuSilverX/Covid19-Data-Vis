@@ -11,9 +11,13 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / 'data'
+
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,8 +29,7 @@ SECRET_KEY = 'django-insecure-2svtf$0coi@hmex7v=p2(f+6fv(h!+rd%fc9150a182od3%&o7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Application definition
 
@@ -44,7 +47,8 @@ INSTALLED_APPS = [
     'channels',            # Required for asynchronous support
 
     # Custom apps
-    'data_handler',
+    'data_handler.apps.DataHandlerConfig',
+
 ]
 
 
@@ -134,8 +138,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+logger.info(f"BASE_DIR: {BASE_DIR}")
+logger.info(f"DATA_DIR: {DATA_DIR}")
