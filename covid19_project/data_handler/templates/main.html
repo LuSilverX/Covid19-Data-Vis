@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>COVID-19 Interactive Dashboard</title>
+    <style>
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f8f9fa;
+            flex-direction: column;
+            text-align: center;
+        }
+        .square {
+            width: 200px;
+            height: 200px;
+            margin: 20px;
+            background-color: #007bff;
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: transform 0.3s, background-color 0.3s;
+        }
+        .square:hover {
+            transform: scale(1.1);
+            background-color: #0056b3;
+        }
+        .description {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>COVID-19 Interactive Dashboard</h1>
+        <a href="{% url 'pandemic_data_page' %}" class="square">
+            Pandemic Data
+            <div class="description">Explore data from the beginning of the pandemic.</div>
+        </a>
+        <a href="{% url 'live_data_page' %}" class="square">
+            Live Data
+            <div class="description">View current COVID-19 statistics and trends.</div>
+        </a>
+    </div>
+<script src="{% static 'js/interactive.js' %}"></script>
+</body>
+</html>
