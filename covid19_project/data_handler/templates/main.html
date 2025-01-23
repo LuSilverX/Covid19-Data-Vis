@@ -5,51 +5,90 @@
     <meta charset="UTF-8">
     <title>COVID-19 Interactive Dashboard</title>
     <style>
+        body {
+            font-family: 'Arial', sans-serif; /* Clean font for the overall page */
+            background-color: #eef2f3; /* Light background for a modern look */
+            margin: 0;
+            padding: 0;
+        }
+
         .container {
             display: flex;
             justify-content: center;
             align-items: center;
             height: 100vh;
-            background-color: #f8f9fa;
-            flex-direction: column;
             text-align: center;
+            gap: 40px; /* Add spacing between the squares */
         }
+
+        .title-container {
+            text-align: center;
+            margin-bottom: -155px; /* Create space between the title and squares */
+        }
+
+        .title-container h1 {
+            margin: 0;
+            font-size: 42px; /* Larger font for the title to stand out */
+            font-weight: 900; /* Extra bold for emphasis */
+            color: #2c3e50; /* Professional dark gray color */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
+        }
+
+        .title-container p {
+            margin: 15px auto 0; /* Space between title and description */
+            font-size: 18px; /* Slightly larger description font */
+            color: #34495e; /* Softer gray for readability */
+            max-width: 650px; /* Keep the description width compact */
+            line-height: 1.6; /* Increase line height for readability */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.05); /* Subtle shadow for depth */
+        }
+
+        .title-container .subtitle {
+            margin: 15px auto 0; /* Space between description and subtitle */
+            font-size: 22px; /* Slightly larger font for the subtitle */
+            font-weight: bold; /* Bold for emphasis */
+            color: #2980b9; /* Vibrant blue for the subtitle */
+            letter-spacing: 1px; /* Add spacing between letters for elegance */
+            text-transform: uppercase; /* Capitalize the subtitle for impact */
+        }
+
         .square {
-            width: 200px;
-            height: 200px;
+            width: 300px; /* Slightly smaller width for modern balance */
+            height: 300px; /* Adjusted height for consistency */
             margin: 20px;
-            background-color: #007bff;
-            color: white;
+            background: linear-gradient(145deg, #3498db, #2980b9); /* Gradient for a polished look */
+            color: white; /* White text for contrast */
             display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 18px;
-            text-decoration: none;
-            border-radius: 8px;
-            transition: transform 0.3s, background-color 0.3s;
+            justify-content: center; /* Center text horizontally */
+            align-items: center; /* Center text vertically */
+            font-size: 20px; /* Text size for clarity */
+            text-decoration: none; /* Remove underline for links */
+            border-radius: 15px; /* Softer rounded corners */
+            box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2); /* Subtle shadow for depth */
+            transition: transform 0.3s, background-color 0.3s, box-shadow 0.3s; /* Smooth hover effects */
         }
+
         .square:hover {
-            transform: scale(1.1);
-            background-color: #0056b3;
-        }
-        .description {
-            margin-top: 10px;
-            font-size: 14px;
+            transform: scale(1.05); /* Slight zoom on hover for interactivity */
+            background: linear-gradient(145deg, #2980b9, #1c5980); /* Darker gradient on hover */
+            box-shadow: 6px 6px 15px rgba(0, 0, 0, 0.3); /* More pronounced shadow on hover */
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="title-container">
         <h1>COVID-19 Interactive Dashboard</h1>
+        <p>The COVID-19 pandemic, caused by the SARS-CoV-2 virus, began in late 2019 and quickly spread worldwide, leading to illness, economic disruption, and millions of deaths. Declared a pandemic by the WHO in March 2020, governments implemented lockdowns, travel restrictions, and vaccinations. While no longer at its peak, COVID-19 remains a public health concern, with ongoing vaccination efforts targeting new variants.</p>
+        <div class="subtitle">Choose your path below</div>
+    </div>
+    <div class="container">
         <a href="{% url 'pandemic_data_page' %}" class="square">
-            Pandemic Data
-            <div class="description">Explore data from the beginning of the pandemic.</div>
+            From the beginning
         </a>
         <a href="{% url 'live_data_page' %}" class="square">
-            Live Data
-            <div class="description">View current COVID-19 statistics and trends.</div>
+            Today
         </a>
     </div>
-<script src="{% static 'js/interactive.js' %}"></script>
+    <script src="{% static 'js/interactive.js' %}"></script>
 </body>
 </html>
