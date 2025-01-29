@@ -1,3 +1,41 @@
 from django.db import models
 
-# Create your models here.
+class CovidCountyData(models.Model):
+    date = models.DateField(primary_key=True)
+    county = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    fips = models.IntegerField(null=True, blank=True)
+    cases = models.IntegerField()
+    deaths = models.IntegerField()
+
+    class Meta:
+        db_table = "us_counties_data"  # Match existing MySQL table
+
+    def __str__(self):
+        return f"{self.county}, {self.state} - {self.date}: {self.cases} cases, {self.deaths} deaths"
+
+
+class CovidStateData(models.Model):
+    date = models.DateField(primary_key=True)
+    state = models.CharField(max_length=100)
+    fips = models.IntegerField()
+    cases = models.IntegerField()
+    deaths = models.IntegerField()
+
+    class Meta:
+        db_table = "us_states_data"  # Match existing MySQL table
+
+    def __str__(self):
+        return f"{self.state} - {self.date}: {self.cases} cases, {self.deaths} deaths"
+
+
+class CovidUSData(models.Model):
+    date = models.DateField(primary_key=True)
+    cases = models.IntegerField()
+    deaths = models.IntegerField()
+
+    class Meta:
+        db_table = "us_covid_data"  # Match existing MySQL table
+
+    def __str__(self):
+        return f"US - {self.date}: {self.cases} cases, {self.deaths} deaths"
