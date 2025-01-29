@@ -1,0 +1,88 @@
+
+
+{% block content %}
+    <h1>COVID-19 Dashboard</h1>
+
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+
+    <h2>National Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in us_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>State Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>State</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in state_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.state }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h2>County Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>County</th>
+                <th>State</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in county_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.county }}</td>
+                <td>{{ entry.state }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+{% endblock %}
