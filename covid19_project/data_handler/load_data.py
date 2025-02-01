@@ -36,7 +36,7 @@ def load_and_process_data(file_path):
 
         # Fill missing FIPS values with 0 if 'fips' column exists
         if 'fips' in df.columns:
-            df['fips'].fillna(0, inplace=True)
+            df['fips'] = df['fips'].fillna(0)
 
         logging.info("Data loaded successfully from: %s", file_path)
         return df
