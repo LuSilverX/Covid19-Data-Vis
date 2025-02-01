@@ -1,7 +1,7 @@
 {% block content %}
-    <h1 class="main-title">COVID-19 Dashboard</h1>
+    <h1>COVID-19 Dashboard</h1>
     <h2 class="main-title">Early COVID-19 Spread in the U.S.</h2>
-    <h3 class="main-title">Scroll Down for Map</h3>
+    <h3>Scroll Down for Map</h3>
 
     <style>
         body {
@@ -9,6 +9,22 @@
             background-color: #eef2f3;
             margin: 0;
             padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+        }
+        .main-title {
+            color: #2c3e50;
+            text-align: center;
+        }
+        h2 {
+            color:#2c3e50;
+            text-align: left;
+        }
+        h3 {
+            color: red;
+            text-align: center;
         }
         .container {
             width: 90%;
@@ -205,5 +221,7 @@
             {% endif %}
         </div>
     </div>
-
+    <a href="{% url 'main' %}" style="text-decoration: none; color: blue; font-size: 16px; margin-top: 20px; display: inline-block;">
+        &larr; Return to Main Page
+    </a>
 {% endblock %}
