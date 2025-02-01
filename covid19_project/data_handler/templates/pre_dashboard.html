@@ -73,155 +73,164 @@
         }
     </style>
 
-    <!-- DataTables for Sorting & Searching (Pagination Disabled) -->
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<!-- DataTables for Sorting & Searching (Pagination Disabled) -->
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
 
-    <script>
-        $(document).ready(function () {
-            $("table").DataTable({
-                "paging": false,  // ✅ Disables DataTables pagination (Django handles it)
-                "searching": true,  // ✅ Enables searching
-                "ordering": true,  // ✅ Enables sorting
-                "info": false  // ✅ Hides "Showing X of Y entries" text
-            });
+<script>
+    $(document).ready(function () {
+        $("table").DataTable({
+            "paging": false,
+            "searching": true,
+            "ordering": true,
+            "info": false
         });
-    </script>
+    });
+</script>
 
-    <div class="container">
-        <h2>National Data</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Cases</th>
-                    <th>Deaths</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in us_data %}
-                <tr>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.cases }}</td>
-                    <td>{{ entry.deaths }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="container">
+    <h2>National Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in us_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 
-        <!-- Pagination for National Data -->
-        <div class="pagination">
-            {% if us_data.has_previous %}
-                <a href="?page=1">First</a>
-                <a href="?page={{ us_data.previous_page_number }}">← Previous</a>
-            {% endif %}
+    <div class="pagination">
+        {% if us_data.has_previous %}
+            <a href="?us_page=1&state_page={{ state_data.number }}&county_page={{ county_data.number }}">First</a>
+            <a href="?us_page={{ us_data.previous_page_number }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">← Previous</a>
+        {% endif %}
 
+        {% with lower_bound=us_data.number|add:"-4" upper_bound=us_data.number|add:"4" %}
             {% for num in us_data.paginator.page_range %}
-                {% if us_data.number == num %}
-                    <strong>{{ num }}</strong>
-                {% else %}
-                    <a href="?page={{ num }}">{{ num }}</a>
+                {% if num >= lower_bound and num <= upper_bound %}
+                    {% if us_data.number == num %}
+                        <strong>{{ num }}</strong>
+                    {% else %}
+                        <a href="?us_page={{ num }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">{{ num }}</a>
+                    {% endif %}
                 {% endif %}
             {% endfor %}
+        {% endwith %}
 
-            {% if us_data.has_next %}
-                <a href="?page={{ us_data.next_page_number }}">Next →</a>
-                <a href="?page={{ us_data.paginator.num_pages }}">Last</a>
-            {% endif %}
-        </div>
-
-        <h2>State Data</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>State</th>
-                    <th>Cases</th>
-                    <th>Deaths</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in state_data %}
-                <tr>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.state }}</td>
-                    <td>{{ entry.cases }}</td>
-                    <td>{{ entry.deaths }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Pagination for State Data -->
-        <div class="pagination">
-            {% if state_data.has_previous %}
-                <a href="?page=1">First</a>
-                <a href="?page={{ state_data.previous_page_number }}">← Previous</a>
-            {% endif %}
-
-            {% for num in state_data.paginator.page_range %}
-                {% if state_data.number == num %}
-                    <strong>{{ num }}</strong>
-                {% else %}
-                    <a href="?page={{ num }}">{{ num }}</a>
-                {% endif %}
-            {% endfor %}
-
-            {% if state_data.has_next %}
-                <a href="?page={{ state_data.next_page_number }}">Next →</a>
-                <a href="?page={{ state_data.paginator.num_pages }}">Last</a>
-            {% endif %}
-        </div>
-
-        <h2>County Data</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>County</th>
-                    <th>State</th>
-                    <th>FIPS</th>
-                    <th>Cases</th>
-                    <th>Deaths</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for entry in county_data %}
-                <tr>
-                    <td>{{ entry.date }}</td>
-                    <td>{{ entry.county }}</td>
-                    <td>{{ entry.state }}</td>
-                    <td>{{ entry.fips|default:"N/A" }}</td>  <!-- Displays "N/A" if missing -->
-                    <td>{{ entry.cases }}</td>
-                    <td>{{ entry.deaths }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-
-        <!-- Pagination for County Data -->
-        <div class="pagination">
-            {% if county_data.has_previous %}
-                <a href="?page=1">First</a>
-                <a href="?page={{ county_data.previous_page_number }}">← Previous</a>
-            {% endif %}
-
-            {% for num in county_data.paginator.page_range %}
-                {% if county_data.number == num %}
-                    <strong>{{ num }}</strong>
-                {% else %}
-                    <a href="?page={{ num }}">{{ num }}</a>
-                {% endif %}
-            {% endfor %}
-
-            {% if county_data.has_next %}
-                <a href="?page={{ county_data.next_page_number }}">Next →</a>
-                <a href="?page={{ county_data.paginator.num_pages }}">Last</a>
-            {% endif %}
-        </div>
+        {% if us_data.has_next %}
+            <a href="?us_page={{ us_data.next_page_number }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">Next →</a>
+            <a href="?us_page={{ us_data.paginator.num_pages }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">Last</a>
+        {% endif %}
     </div>
-    <a href="{% url 'main' %}" style="text-decoration: none; color: blue; font-size: 16px; margin-top: 20px; display: inline-block;">
-        &larr; Return to Main Page
-    </a>
+
+    <h2>State Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>State</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in state_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.state }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        {% if state_data.has_previous %}
+            <a href="?state_page=1&us_page={{ us_data.number }}&county_page={{ county_data.number }}">First</a>
+            <a href="?state_page={{ state_data.previous_page_number }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">← Previous</a>
+        {% endif %}
+
+        {% with lower_bound=state_data.number|add:"-4" upper_bound=state_data.number|add:"4" %}
+            {% for num in state_data.paginator.page_range %}
+                {% if num >= lower_bound and num <= upper_bound %}
+                    {% if state_data.number == num %}
+                        <strong>{{ num }}</strong>
+                    {% else %}
+                        <a href="?state_page={{ num }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">{{ num }}</a>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        {% if state_data.has_next %}
+            <a href="?state_page={{ state_data.next_page_number }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">Next →</a>
+            <a href="?state_page={{ state_data.paginator.num_pages }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">Last</a>
+        {% endif %}
+    </div>
+
+    <h2>County Data</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>County</th>
+                <th>State</th>
+                <th>FIPS</th>
+                <th>Cases</th>
+                <th>Deaths</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in county_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.county }}</td>
+                <td>{{ entry.state }}</td>
+                <td>{{ entry.fips|default:"N/A" }}</td>
+                <td>{{ entry.cases }}</td>
+                <td>{{ entry.deaths }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        {% if county_data.has_previous %}
+            <a href="?county_page=1&us_page={{ us_data.number }}&state_page={{ state_data.number }}">First</a>
+            <a href="?county_page={{ county_data.previous_page_number }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">← Previous</a>
+        {% endif %}
+
+        {% with lower_bound=county_data.number|add:"-4" upper_bound=county_data.number|add:"4" %}
+            {% for num in county_data.paginator.page_range %}
+                {% if num >= lower_bound and num <= upper_bound %}
+                    {% if county_data.number == num %}
+                        <strong>{{ num }}</strong>
+                    {% else %}
+                        <a href="?county_page={{ num }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">{{ num }}</a>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        {% if county_data.has_next %}
+            <a href="?county_page={{ county_data.next_page_number }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">Next →</a>
+            <a href="?county_page={{ county_data.paginator.num_pages }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">Last</a>
+        {% endif %}
+    </div>
+
+<a href="{% url 'main' %}" style="text-decoration: none; color: blue; font-size: 16px; margin-top: 20px; display: inline-block;">
+    ← Return to Main Page
+</a>
 {% endblock %}
