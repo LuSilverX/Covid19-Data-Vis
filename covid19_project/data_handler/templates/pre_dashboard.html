@@ -1,7 +1,7 @@
 {% block content %}
     <h1>COVID-19 Dashboard</h1>
     <h2 class="main-title">Early COVID-19 Spread in the U.S.</h2>
-    <h3>Scroll Down for Map</h3>
+    <h3>Click here for interactive map</h3>
 
     <style>
         body {
@@ -73,164 +73,231 @@
         }
     </style>
 
-<!-- DataTables for Sorting & Searching (Pagination Disabled) -->
-<link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css">
+<!-- Include jQuery (required for AJAX) -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
-
-<script>
-    $(document).ready(function () {
-        $("table").DataTable({
-            "paging": false,
-            "searching": true,
-            "ordering": true,
-            "info": false
-        });
-    });
-</script>
 
 <div class="container">
-    <h2>National Data</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Cases</th>
-                <th>Deaths</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in us_data %}
-            <tr>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.cases }}</td>
-                <td>{{ entry.deaths }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+  <!-- NATIONAL (US) DATA -->
+  <h2>National Data</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Cases</th>
+        <th>Deaths</th>
+      </tr>
+    </thead>
+    <tbody id="us-data-tbody">
+      {% for entry in us_data %}
+      <tr>
+         <td>{{ entry.date }}</td>
+         <td>{{ entry.cases }}</td>
+         <td>{{ entry.deaths }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination" id="us-pagination-container">
+    {# The AJAX code below will replace these pagination buttons #}
+  </div>
 
-    <div class="pagination">
-        {% if us_data.has_previous %}
-            <a href="?us_page=1&state_page={{ state_data.number }}&county_page={{ county_data.number }}">First</a>
-            <a href="?us_page={{ us_data.previous_page_number }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">← Previous</a>
-        {% endif %}
+  <!-- STATE DATA -->
+  <h2>State Data</h2>
+  <table>
+    <thead>
+      <tr>
+         <th>Date</th>
+         <th>State</th>
+         <th>Cases</th>
+         <th>Deaths</th>
+      </tr>
+    </thead>
+    <tbody id="state-data-tbody">
+      {% for entry in state_data %}
+      <tr>
+         <td>{{ entry.date }}</td>
+         <td>{{ entry.state }}</td>
+         <td>{{ entry.cases }}</td>
+         <td>{{ entry.deaths }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination" id="state-pagination-container">
+  </div>
 
-        {% with lower_bound=us_data.number|add:"-4" upper_bound=us_data.number|add:"4" %}
-            {% for num in us_data.paginator.page_range %}
-                {% if num >= lower_bound and num <= upper_bound %}
-                    {% if us_data.number == num %}
-                        <strong>{{ num }}</strong>
-                    {% else %}
-                        <a href="?us_page={{ num }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">{{ num }}</a>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-        {% endwith %}
-
-        {% if us_data.has_next %}
-            <a href="?us_page={{ us_data.next_page_number }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">Next →</a>
-            <a href="?us_page={{ us_data.paginator.num_pages }}&state_page={{ state_data.number }}&county_page={{ county_data.number }}">Last</a>
-        {% endif %}
-    </div>
-
-    <h2>State Data</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>State</th>
-                <th>Cases</th>
-                <th>Deaths</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in state_data %}
-            <tr>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.state }}</td>
-                <td>{{ entry.cases }}</td>
-                <td>{{ entry.deaths }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="pagination">
-        {% if state_data.has_previous %}
-            <a href="?state_page=1&us_page={{ us_data.number }}&county_page={{ county_data.number }}">First</a>
-            <a href="?state_page={{ state_data.previous_page_number }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">← Previous</a>
-        {% endif %}
-
-        {% with lower_bound=state_data.number|add:"-4" upper_bound=state_data.number|add:"4" %}
-            {% for num in state_data.paginator.page_range %}
-                {% if num >= lower_bound and num <= upper_bound %}
-                    {% if state_data.number == num %}
-                        <strong>{{ num }}</strong>
-                    {% else %}
-                        <a href="?state_page={{ num }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">{{ num }}</a>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-        {% endwith %}
-
-        {% if state_data.has_next %}
-            <a href="?state_page={{ state_data.next_page_number }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">Next →</a>
-            <a href="?state_page={{ state_data.paginator.num_pages }}&us_page={{ us_data.number }}&county_page={{ county_data.number }}">Last</a>
-        {% endif %}
-    </div>
-
-    <h2>County Data</h2>
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>County</th>
-                <th>State</th>
-                <th>FIPS</th>
-                <th>Cases</th>
-                <th>Deaths</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for entry in county_data %}
-            <tr>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.county }}</td>
-                <td>{{ entry.state }}</td>
-                <td>{{ entry.fips|default:"N/A" }}</td>
-                <td>{{ entry.cases }}</td>
-                <td>{{ entry.deaths }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-
-    <div class="pagination">
-        {% if county_data.has_previous %}
-            <a href="?county_page=1&us_page={{ us_data.number }}&state_page={{ state_data.number }}">First</a>
-            <a href="?county_page={{ county_data.previous_page_number }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">← Previous</a>
-        {% endif %}
-
-        {% with lower_bound=county_data.number|add:"-4" upper_bound=county_data.number|add:"4" %}
-            {% for num in county_data.paginator.page_range %}
-                {% if num >= lower_bound and num <= upper_bound %}
-                    {% if county_data.number == num %}
-                        <strong>{{ num }}</strong>
-                    {% else %}
-                        <a href="?county_page={{ num }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">{{ num }}</a>
-                    {% endif %}
-                {% endif %}
-            {% endfor %}
-        {% endwith %}
-
-        {% if county_data.has_next %}
-            <a href="?county_page={{ county_data.next_page_number }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">Next →</a>
-            <a href="?county_page={{ county_data.paginator.num_pages }}&us_page={{ us_data.number }}&state_page={{ state_data.number }}">Last</a>
-        {% endif %}
-    </div>
+  <!-- COUNTY DATA -->
+  <h2>County Data</h2>
+  <table>
+    <thead>
+      <tr>
+         <th>Date</th>
+         <th>County</th>
+         <th>State</th>
+         <th>FIPS</th>
+         <th>Cases</th>
+         <th>Deaths</th>
+      </tr>
+    </thead>
+    <tbody id="county-data-tbody">
+      {% for entry in county_data %}
+      <tr>
+         <td>{{ entry.date }}</td>
+         <td>{{ entry.county }}</td>
+         <td>{{ entry.state }}</td>
+         <td>{{ entry.fips|default:"N/A" }}</td>
+         <td>{{ entry.cases }}</td>
+         <td>{{ entry.deaths }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="pagination" id="county-pagination-container">
+  </div>
+</div>
 
 <a href="{% url 'main' %}" style="text-decoration: none; color: blue; font-size: 16px; margin-top: 20px; display: inline-block;">
     ← Return to Main Page
 </a>
+
+<script>
+  // Global page state for each dataset (defaulting to current page from context or 1)
+  let usCurrentPage = {{ us_data.number|default:"1" }};
+  let stateCurrentPage = {{ state_data.number|default:"1" }};
+  let countyCurrentPage = {{ county_data.number|default:"1" }};
+
+  // Global cache object for AJAX responses (keyed by a combination of page numbers)
+  const cache = {};
+
+  // Function to load all three datasets at once via AJAX
+  function loadData() {
+    // Create a unique cache key based on current page values
+    const key = `us=${usCurrentPage}&state=${stateCurrentPage}&county=${countyCurrentPage}`;
+    if (cache[key]) {
+      const response = cache[key];
+      updateAllTables(response);
+      return;
+    }
+    $.ajax({
+      url: `/api/data/?us_page=${usCurrentPage}&state_page=${stateCurrentPage}&county_page=${countyCurrentPage}`,
+      method: 'GET',
+      success: function(response) {
+        cache[key] = response;
+        updateAllTables(response);
+      }
+    });
+  }
+
+  // Update all tables and pagination sections using the AJAX response data
+  function updateAllTables(response) {
+    // Update US (National) table and pagination
+    updateTable('us', response.us_data);
+    updatePagination('us', response.us_pagination);
+    // Update State table and pagination
+    updateTable('state', response.state_data);
+    updatePagination('state', response.state_pagination);
+    // Update County table and pagination
+    updateTable('county', response.county_data);
+    updatePagination('county', response.county_pagination);
+  }
+
+  // Update table body for a given dataset using its data array
+  function updateTable(dataset, data) {
+    let tbodyId = '';
+    if (dataset === 'us') {
+      tbodyId = '#us-data-tbody';
+    } else if (dataset === 'state') {
+      tbodyId = '#state-data-tbody';
+    } else if (dataset === 'county') {
+      tbodyId = '#county-data-tbody';
+    }
+    const tbody = $(tbodyId);
+    tbody.empty();
+    data.forEach(item => {
+      let row = '';
+      if (dataset === 'us') {
+        row = `<tr>
+                <td>${item.date}</td>
+                <td>${item.cases}</td>
+                <td>${item.deaths}</td>
+              </tr>`;
+      } else if (dataset === 'state') {
+        row = `<tr>
+                <td>${item.date}</td>
+                <td>${item.state}</td>
+                <td>${item.cases}</td>
+                <td>${item.deaths}</td>
+              </tr>`;
+      } else if (dataset === 'county') {
+        row = `<tr>
+                <td>${item.date}</td>
+                <td>${item.county}</td>
+                <td>${item.state}</td>
+                <td>${item.fips || "N/A"}</td>
+                <td>${item.cases}</td>
+                <td>${item.deaths}</td>
+              </tr>`;
+      }
+      tbody.append(row);
+    });
+  }
+
+  // Update pagination controls for a given dataset using its pagination object
+  function updatePagination(dataset, pagination) {
+    let containerId = '';
+    let currentPage;
+    if (dataset === 'us') {
+      containerId = '#us-pagination-container';
+      currentPage = usCurrentPage;
+    } else if (dataset === 'state') {
+      containerId = '#state-pagination-container';
+      currentPage = stateCurrentPage;
+    } else if (dataset === 'county') {
+      containerId = '#county-pagination-container';
+      currentPage = countyCurrentPage;
+    }
+    const container = $(containerId);
+    container.empty();
+
+    // Create First and Previous buttons if available
+    if (pagination.has_previous) {
+      container.append(`<button onclick="setPage('${dataset}', 1)">First</button>`);
+      container.append(`<button onclick="setPage('${dataset}', ${currentPage - 1})">← Prev</button>`);
+    }
+
+    // Show page numbers (4 before and after the current page)
+    const lower = Math.max(1, pagination.current_page - 4);
+    const upper = Math.min(pagination.total_pages, pagination.current_page + 4);
+    for (let i = lower; i <= upper; i++) {
+      if (i === pagination.current_page) {
+        container.append(`<button class="active">${i}</button>`);
+      } else {
+        container.append(`<button onclick="setPage('${dataset}', ${i})">${i}</button>`);
+      }
+    }
+
+    // Create Next and Last buttons if available
+    if (pagination.has_next) {
+      container.append(`<button onclick="setPage('${dataset}', ${currentPage + 1})">Next →</button>`);
+      container.append(`<button onclick="setPage('${dataset}', ${pagination.total_pages})">Last</button>`);
+    }
+  }
+
+  // Called when a pagination button is clicked; updates the appropriate page variable then reloads data
+  function setPage(dataset, page) {
+    if (dataset === 'us') {
+      usCurrentPage = page;
+    } else if (dataset === 'state') {
+      stateCurrentPage = page;
+    } else if (dataset === 'county') {
+      countyCurrentPage = page;
+    }
+    loadData();
+  }
+
+  // Initial load when the document is ready
+  $(document).ready(function(){
+    loadData();
+  });
+</script>
 {% endblock %}
