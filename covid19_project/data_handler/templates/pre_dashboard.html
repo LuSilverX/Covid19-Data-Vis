@@ -1,3 +1,4 @@
+{% load plotly_dash %}
 {% block content %}
     <h1>COVID-19 Dashboard</h1>
     <h2 class="main-title">Early COVID-19 Spread in the U.S.</h2>
@@ -83,6 +84,7 @@
             border-radius: 5px;
             background-color: #fff;
             cursor: pointer;
+            font-size: 14px;
         }
         .pagination button.active {
             background-color: #007bff;
@@ -176,6 +178,12 @@
     <a href="{% url 'main' %}" style="text-decoration: none; color: blue; font-size: 16px; margin-top: 20px; display: inline-block;">
         ← Return to Main Page
     </a>
+
+    <div style="margin-top: 50px;">
+
+    <h2>COVID-19 Interactive Dashboard</h2>
+    {% plotly_app name="CovidDashboard" %}
+    </div>
 
     <script>
       // Global page state for each dataset (defaulting to current page from context or 1)

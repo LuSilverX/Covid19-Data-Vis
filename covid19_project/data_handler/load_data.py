@@ -48,7 +48,6 @@ def load_and_process_data(file_path):
         logging.error("An error occurred while loading data: %s", e)
         return None
 
-
 # Define filenames
 FILENAMES = {
     "county": "us-counties.csv",

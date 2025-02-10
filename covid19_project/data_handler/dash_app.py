@@ -4,6 +4,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import plotly.express as px
 from .load_data import county_data, state_data, us_data
+
 # Constants
 TITLE = "COVID-19 Interactive Dashboard"
 CENTER_STYLE = {'textAlign': 'center'}
@@ -32,8 +33,12 @@ def filter_data(data, **filters):
 app = DjangoDash('CovidDashboard')
 app.title = TITLE
 
-# Define the layout of the app
+# Define the layout of the app including a dummy interval component.
+# Make sure your Django template correctly embeds this app.
 app.layout = html.Div([
+    # Dummy interval component to trigger the U.S. graph callback
+    dcc.Interval(id='dummy-interval', interval=1000, n_intervals=0, max_intervals=1),
+
     html.H1(TITLE, style=CENTER_STYLE),
 
     # National Overview
@@ -53,7 +58,7 @@ app.layout = html.Div([
             ], className='metric', style=METRIC_STYLE),
         ], className='metrics-container', style=CONTAINER_STYLE),
 
-        # Line Chart
+        # Line Chart for U.S. data
         dcc.Graph(id='us-graph', style={'height': '500px'})
     ], className='section', style=SECTION_STYLE),
 
@@ -82,13 +87,15 @@ app.layout = html.Div([
     ], className='section')
 ], style=APP_STYLE)
 
+print("dash_app.py for CovidDashboard has been imported!")
 
-# Callback to update the U.S. overview graph
+# Callback to update the U.S. overview graph using the dummy interval as input
 @app.callback(
     Output('us-graph', 'figure'),
-    []
+    [Input('dummy-interval', 'n_intervals')]
 )
-def update_us_graph():
+def update_us_graph(n_intervals):
+    print("Dummy interval triggered, n_intervals =", n_intervals)
     fig = px.line(
         us_data,
         x='date',
@@ -99,8 +106,7 @@ def update_us_graph():
     fig.update_layout(xaxis_title='Date', yaxis_title='Number of Cases')
     return fig
 
-
-# Callback to update the state-level graph based on selected state
+# Callback to update the state-level graph based on the selected state
 @app.callback(
     Output('state-graph', 'figure'),
     [Input('state-dropdown', 'value')]
@@ -119,8 +125,7 @@ def update_state_graph(selected_state):
     fig.update_layout(xaxis_title='Date', yaxis_title='Number of Cases')
     return fig
 
-
-# Callback to update the county dropdown options based on selected state
+# Callback to update the county dropdown options based on the selected state
 @app.callback(
     [Output('county-dropdown', 'options'),
      Output('county-dropdown', 'disabled')],
@@ -132,7 +137,6 @@ def update_county_dropdown(selected_state):
     counties = county_data[county_data['state'] == selected_state]['county'].unique()
     county_options = [{'label': county, 'value': county} for county in sorted(counties)]
     return county_options, False
-
 
 # Callback to update the county-level graph based on selected county and state
 @app.callback(
@@ -153,4 +157,3 @@ def update_county_graph(selected_county, selected_state):
     )
     fig.update_layout(xaxis_title='Date', yaxis_title='Number of Cases')
     return fig
-

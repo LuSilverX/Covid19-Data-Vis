@@ -22,5 +22,4 @@ urlpatterns = [
     path('admin/', admin.site.urls),  # Admin routes
     path('django_plotly_dash/', include('django_plotly_dash.urls')),  # Dash integration
     path('', include('data_handler.urls')),  # Serve Django routes at `/`
-    path('', lambda request: redirect('/django_plotly_dash/app/CovidDashboard/')),  # Fallback to Dash app
 ]

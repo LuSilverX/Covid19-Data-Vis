@@ -5,5 +5,5 @@ class DataHandlerConfig(AppConfig):
     name = 'data_handler'
 
     def ready(self):
-        # Import the Dash app during the app's ready phase
+        print(">>> DataHandlerConfig is ready!")
         from . import dash_app
