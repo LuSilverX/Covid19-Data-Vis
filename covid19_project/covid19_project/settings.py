@@ -84,6 +84,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'covid19_project.wsgi.application'
 
 ASGI_APPLICATION = 'covid19_project.asgi.application'
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer',
