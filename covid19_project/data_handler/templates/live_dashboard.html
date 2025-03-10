@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>COVID-19 Live Data Dashboard</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #eef2f3;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2 {
+      color: #2c3e50;
+      text-align: center;
+    }
+    .container {
+      width: 90%;
+      max-width: 1200px;
+      margin: auto;
+      padding: 20px;
+      background: white;
+      border-radius: 15px;
+      box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    form {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    form input, form select {
+      padding: 8px;
+      margin: 5px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    form button {
+      padding: 8px 15px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+    tr:hover {
+      background-color: #ddd;
+    }
+    .error {
+      color: red;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>COVID-19 Live Data Dashboard</h1>
+
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+
+    <!-- Filter Form -->
+    <form method="get" action="{% url 'covid_dashboard' %}">
+      <label for="date">Date (YYYY-MM-DD):</label>
+      <input type="text" id="date" name="date" value="{{ selected_date }}">
+
+      <label for="country">Country:</label>
+      <select id="country" name="country">
+        {% for c in countries_list %}
+          <option value="{{ c }}" {% if selected_country == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+
+      <label for="region">Region/State:</label>
+      <input type="text" id="region" name="region" value="{{ selected_region }}">
+
+      <label for="county">County:</label>
+      <input type="text" id="county" name="county" value="{{ selected_county }}">
+
+      <button type="submit">Filter Data</button>
+    </form>
+
+    <!-- National Data Table -->
+    <h2>National Data</h2>
+    {% if national_data %}
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Country</th>
+            <th>Cases</th>
+            <th>Deaths</th>
+            <th>Recovered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in national_data %}
+            <tr>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.country }}</td>
+              <td>{{ entry.cases }}</td>
+              <td>{{ entry.deaths }}</td>
+              <td>{{ entry.recovered }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p style="text-align:center;">No national data available.</p>
+    {% endif %}
+
+    <!-- State Data Table (for US) -->
+    {% if state_data %}
+      <h2>State Data</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>State/Region</th>
+            <th>Cases</th>
+            <th>Deaths</th>
+            <th>Recovered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in state_data %}
+            <tr>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.region }}</td>
+              <td>{{ entry.cases }}</td>
+              <td>{{ entry.deaths }}</td>
+              <td>{{ entry.recovered }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    <!-- County Data Table (for US) -->
+    {% if county_data %}
+      <h2>County Data</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>County</th>
+            <th>State</th>
+            <th>Cases</th>
+            <th>Deaths</th>
+            <th>Recovered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in county_data %}
+            <tr>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.county }}</td>
+              <td>{{ entry.region }}</td>
+              <td>{{ entry.cases }}</td>
+              <td>{{ entry.deaths }}</td>
+              <td>{{ entry.recovered }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    <a href="{% url 'home' %}" style="display: block; text-align: center; margin-top: 20px;">← Return to Main Page</a>
+  </div>
+</body>
+</html>

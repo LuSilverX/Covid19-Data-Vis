@@ -1,4 +1,3 @@
-import os
 from django_plotly_dash import DjangoDash
 from dash import dcc, html
 from dash.dependencies import Input, Output

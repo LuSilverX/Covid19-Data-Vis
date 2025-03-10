@@ -1,7 +1,5 @@
+import requests
 from django.shortcuts import render
-from django.core.paginator import Paginator
-from .models import CovidCountyData, CovidStateData, CovidUSData
-
 from django.http import JsonResponse
 from django.core.paginator import Paginator
 from .models import CovidCountyData, CovidStateData, CovidUSData
@@ -88,3 +86,84 @@ def pre_dashboard(request):
         'us_data': us_data,
     }
     return render(request, 'pre_dashboard.html', context)
+
+def live_dashboard(request):
+        # Retrieve query parameters from the request
+        date_param = request.GET.get('date', '')
+        country = request.GET.get('country', '')
+        region = request.GET.get('region', '')
+        county = request.GET.get('county', '')
+
+        # Validation / Default: API requires either date or country.
+        # For dashboard purposes, if neither is provided, default to United States.
+        if not (date_param or country):
+            country = "United States"
+
+        # Build the parameters dictionary for the API call
+        params = {}
+        if date_param:
+            params['date'] = date_param
+        if country:
+            params['country'] = country
+        if region:
+            params['region'] = region
+        if county:
+            params['county'] = county
+
+        # API Ninjas COVID-19 endpoint and API key (replace "YOUR_API_KEY" with your actual key)
+        api_url = "https://api-ninjas.com/api/covid19"
+        headers = {"X-Api-Key": "xwxWr+NMRgjCiE6KfSiWWA==HYSKdpGFBTtWvOes"}
+
+        # Make the API request with parameters
+        response = requests.get(api_url, headers=headers, params=params)
+
+        if response.status_code == 200:
+            # Expecting a JSON array of records
+            covid_data = response.json()
+        else:
+            covid_data = []
+            error_message = f"API request failed with status code {response.status_code}."
+            # Pass error_message in the context for display if desired.
+            context = {'error': error_message, 'covid_data': covid_data}
+            return render(request, 'live_dashboard.html', context)
+
+        # Organize the data into sections.
+        # For United States data, we assume entries might include fields for 'region' (state) or 'county'.
+        national_data = []
+        state_data = []
+        county_data = []
+
+        for entry in covid_data:
+            if country.lower() == "united states":
+                # If a county is specified or the entry has a non-empty 'county' field, assume county-level data.
+                if 'county' in entry and entry.get('county'):
+                    county_data.append(entry)
+                # Else if a region (state) is specified or present, assume state-level data.
+                elif 'region' in entry and entry.get('region'):
+                    state_data.append(entry)
+                else:
+                    national_data.append(entry)
+            else:
+                # For other countries, assume the data is only at the national level.
+                national_data.append(entry)
+
+        # Prepare a static list of countries for a drop-down selector.
+        countries_list = [
+            "United States", "Canada", "United Kingdom", "Germany",
+            "France", "Brazil", "India", "Italy", "Spain"
+        ]
+
+        # Build the context for the template
+        context = {
+            'covid_data': covid_data,  # full API response
+            'national_data': national_data,  # aggregated or national-level data
+            'state_data': state_data,  # state or regional data for US
+            'county_data': county_data,  # county-level data for US
+            'selected_date': date_param,
+            'selected_country': country,
+            'selected_region': region,
+            'selected_county': county,
+            'countries_list': countries_list,  # for the drop-down selection in the template
+        }
+
+        return render(request, 'live_dashboard.html', context)

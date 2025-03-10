@@ -20,6 +20,7 @@ from django.shortcuts import redirect
 
 urlpatterns = [
     path('admin/', admin.site.urls),  # Admin routes
-    path('django_plotly_dash/', include('django_plotly_dash.urls')),  # Dash integration
     path('', include('data_handler.urls')),  # Serve Django routes at `/`
+    path('django_plotly_dash/', include('django_plotly_dash.urls')),  # Dash integration
+
 ]
