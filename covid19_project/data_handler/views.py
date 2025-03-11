@@ -59,7 +59,7 @@ def get_paginated_data(request):
     })
 
 
-def pre_dashboard(request):
+def early_dashboard(request):
     # Separate page numbers for each dataset
     county_page = int(request.GET.get('county_page', 1))
     state_page = int(request.GET.get('state_page', 1))
@@ -85,7 +85,7 @@ def pre_dashboard(request):
         'state_data': state_data,
         'us_data': us_data,
     }
-    return render(request, 'pre_dashboard.html', context)
+    return render(request, 'early_dashboard.html', context)
 
 def live_dashboard(request):
         # Retrieve query parameters from the request
@@ -111,11 +111,12 @@ def live_dashboard(request):
             params['county'] = county
 
         # API Ninjas COVID-19 endpoint and API key (replace "YOUR_API_KEY" with your actual key)
-        api_url = "https://api-ninjas.com/api/covid19"
+        api_url = "https://api.api-ninjas.com/v1/covid19?country=unitedstates"
         headers = {"X-Api-Key": "xwxWr+NMRgjCiE6KfSiWWA==HYSKdpGFBTtWvOes"}
 
         # Make the API request with parameters
         response = requests.get(api_url, headers=headers, params=params)
+        print("Response Text:", response.text)
 
         if response.status_code == 200:
             # Expecting a JSON array of records

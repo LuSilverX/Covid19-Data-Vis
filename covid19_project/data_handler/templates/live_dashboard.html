@@ -78,7 +78,7 @@
     {% endif %}
 
     <!-- Filter Form -->
-    <form method="get" action="{% url 'covid_dashboard' %}">
+    <form method="get" action="{% url 'live_data_page' %}">
       <label for="date">Date (YYYY-MM-DD):</label>
       <input type="text" id="date" name="date" value="{{ selected_date }}">
 
@@ -183,7 +183,7 @@
       </table>
     {% endif %}
 
-    <a href="{% url 'home' %}" style="display: block; text-align: center; margin-top: 20px;">← Return to Main Page</a>
+    <a href="{% url 'main' %}" style="display: block; text-align: center; margin-top: 20px;">← Return to Main Page</a>
   </div>
 </body>
 </html>
