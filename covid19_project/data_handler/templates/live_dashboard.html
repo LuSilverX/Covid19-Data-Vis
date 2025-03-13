@@ -10,42 +10,39 @@
       margin: 0;
       padding: 20px;
     }
-    h1, h2 {
-      color: #2c3e50;
-      text-align: center;
-    }
     .container {
-      width: 90%;
       max-width: 1200px;
+      width: 90%;
       margin: auto;
+      background: #fff;
       padding: 20px;
-      background: white;
       border-radius: 15px;
       box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2);
+    }
+    h1, h2 {
+      text-align: center;
+      color: #2c3e50;
     }
     form {
       text-align: center;
       margin-bottom: 30px;
     }
-    form input, form select {
+    form input, form select, form button {
       padding: 8px;
       margin: 5px;
       border: 1px solid #ccc;
       border-radius: 5px;
     }
     form button {
-      padding: 8px 15px;
-      margin: 5px;
-      border: none;
-      border-radius: 5px;
       background-color: #007bff;
-      color: white;
+      color: #fff;
+      border: none;
       cursor: pointer;
     }
     table {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
     }
     th, td {
       border: 1px solid #ddd;
@@ -67,7 +64,34 @@
       text-align: center;
       margin-bottom: 20px;
     }
+    .back-link {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      text-decoration: none;
+      color: #007bff;
+    }
+    .pagination {
+      margin-top: 10px;
+      text-align: center;
+    }
+    .pagination button {
+      padding: 5px 10px;
+      margin: 2px;
+      text-decoration: none;
+      border: 1px solid #007bff;
+      color: #007bff;
+      border-radius: 5px;
+      background-color: #fff;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .pagination button.active {
+      background-color: #007bff;
+      color: white;
+    }
   </style>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
   <div class="container">
@@ -98,92 +122,220 @@
       <button type="submit">Filter Data</button>
     </form>
 
-    <!-- National Data Table -->
+    <!-- National Data Section -->
     <h2>National Data</h2>
-    {% if national_data %}
-      <table>
-        <thead>
+    <table>
+      <thead>
+        <tr>
+          <th>Country</th>
+          <th>Region</th>
+          <th>Date</th>
+          <th>Cases (Total)</th>
+          <th>Cases (New)</th>
+          <th>Deaths (Total)</th>
+          <th>Deaths (New)</th>
+          <th>Recovered (Total)</th>
+          <th>Recovered (New)</th>
+        </tr>
+      </thead>
+      <tbody id="national-data-tbody">
+        {% for entry in national_data %}
           <tr>
-            <th>Date</th>
-            <th>Country</th>
-            <th>Cases</th>
-            <th>Deaths</th>
-            <th>Recovered</th>
+            <td>{{ entry.country }}</td>
+            <td>{{ entry.region }}</td>
+            <td>{{ entry.date }}</td>
+            <td>{{ entry.cases_total }}</td>
+            <td>{{ entry.cases_new }}</td>
+            <td>{{ entry.deaths_total }}</td>
+            <td>{{ entry.deaths_new }}</td>
+            <td>{{ entry.recovered_total }}</td>
+            <td>{{ entry.recovered_new }}</td>
           </tr>
-        </thead>
-        <tbody>
-          {% for entry in national_data %}
-            <tr>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.country }}</td>
-              <td>{{ entry.cases }}</td>
-              <td>{{ entry.deaths }}</td>
-              <td>{{ entry.recovered }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% else %}
-      <p style="text-align:center;">No national data available.</p>
-    {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination" id="national-pagination-container"></div>
 
-    <!-- State Data Table (for US) -->
-    {% if state_data %}
-      <h2>State Data</h2>
-      <table>
-        <thead>
+    <!-- State Data Section -->
+    <h2>State Data</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Country</th>
+          <th>Region</th>
+          <th>Date</th>
+          <th>Cases (Total)</th>
+          <th>Cases (New)</th>
+          <th>Deaths (Total)</th>
+          <th>Deaths (New)</th>
+          <th>Recovered (Total)</th>
+          <th>Recovered (New)</th>
+        </tr>
+      </thead>
+      <tbody id="state-data-tbody">
+        {% for entry in state_data %}
           <tr>
-            <th>Date</th>
-            <th>State/Region</th>
-            <th>Cases</th>
-            <th>Deaths</th>
-            <th>Recovered</th>
+            <td>{{ entry.country }}</td>
+            <td>{{ entry.region }}</td>
+            <td>{{ entry.date }}</td>
+            <td>{{ entry.cases_total }}</td>
+            <td>{{ entry.cases_new }}</td>
+            <td>{{ entry.deaths_total }}</td>
+            <td>{{ entry.deaths_new }}</td>
+            <td>{{ entry.recovered_total }}</td>
+            <td>{{ entry.recovered_new }}</td>
           </tr>
-        </thead>
-        <tbody>
-          {% for entry in state_data %}
-            <tr>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.region }}</td>
-              <td>{{ entry.cases }}</td>
-              <td>{{ entry.deaths }}</td>
-              <td>{{ entry.recovered }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination" id="state-pagination-container"></div>
 
-    <!-- County Data Table (for US) -->
-    {% if county_data %}
-      <h2>County Data</h2>
-      <table>
-        <thead>
+    <!-- County Data Section -->
+    <h2>County Data</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Country</th>
+          <th>Region</th>
+          <th>County</th>
+          <th>Date</th>
+          <th>Cases (Total)</th>
+          <th>Cases (New)</th>
+          <th>Deaths (Total)</th>
+          <th>Deaths (New)</th>
+          <th>Recovered (Total)</th>
+          <th>Recovered (New)</th>
+        </tr>
+      </thead>
+      <tbody id="county-data-tbody">
+        {% for entry in county_data %}
           <tr>
-            <th>Date</th>
-            <th>County</th>
-            <th>State</th>
-            <th>Cases</th>
-            <th>Deaths</th>
-            <th>Recovered</th>
+            <td>{{ entry.country }}</td>
+            <td>{{ entry.region }}</td>
+            <td>{{ entry.county }}</td>
+            <td>{{ entry.date }}</td>
+            <td>{{ entry.cases_total }}</td>
+            <td>{{ entry.cases_new }}</td>
+            <td>{{ entry.deaths_total }}</td>
+            <td>{{ entry.deaths_new }}</td>
+            <td>{{ entry.recovered_total }}</td>
+            <td>{{ entry.recovered_new }}</td>
           </tr>
-        </thead>
-        <tbody>
-          {% for entry in county_data %}
-            <tr>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.county }}</td>
-              <td>{{ entry.region }}</td>
-              <td>{{ entry.cases }}</td>
-              <td>{{ entry.deaths }}</td>
-              <td>{{ entry.recovered }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="pagination" id="county-pagination-container"></div>
 
-    <a href="{% url 'main' %}" style="display: block; text-align: center; margin-top: 20px;">← Return to Main Page</a>
+    <a class="back-link" href="{% url 'main' %}">← Return to Main Page</a>
   </div>
+
+  <script>
+    // Global page state
+    let nationalCurrentPage = {{ national_pagination.current_page|default:"1" }};
+    let stateCurrentPage = {{ state_pagination.current_page|default:"1" }};
+    let countyCurrentPage = {{ county_pagination.current_page|default:"1" }};
+
+    // Global cache for AJAX responses
+    const cache = {};
+
+    // Function to load data via AJAX
+    function loadData() {
+      const key = `national=${nationalCurrentPage}&state=${stateCurrentPage}&county=${countyCurrentPage}`;
+      if (cache[key]) {
+        updateAllTables(cache[key]);
+        return;
+      }
+      $.ajax({
+        url: `/live_data/?date={{ selected_date }}&country={{ selected_country }}&region={{ selected_region }}&county={{ selected_county }}&national_page=${nationalCurrentPage}&state_page=${stateCurrentPage}&county_page=${countyCurrentPage}`,
+        method: 'GET',
+        success: function(response) {
+          cache[key] = response;
+          updateAllTables(response);
+        }
+      });
+    }
+
+    // Update all tables and pagination
+    function updateAllTables(response) {
+      const nationalData = $(response).find('#national-data-tbody').html();
+      const stateData = $(response).find('#state-data-tbody').html();
+      const countyData = $(response).find('#county-data-tbody').html();
+
+      $('#national-data-tbody').html(nationalData);
+      $('#state-data-tbody').html(stateData);
+      $('#county-data-tbody').html(countyData);
+
+      updatePagination('national', {
+        has_previous: {{ national_pagination.has_previous|lower }},
+        has_next: {{ national_pagination.has_next|lower }},
+        current_page: nationalCurrentPage,
+        total_pages: {{ national_pagination.total_pages }}
+      });
+      updatePagination('state', {
+        has_previous: {{ state_pagination.has_previous|lower }},
+        has_next: {{ state_pagination.has_next|lower }},
+        current_page: stateCurrentPage,
+        total_pages: {{ state_pagination.total_pages }}
+      });
+      updatePagination('county', {
+        has_previous: {{ county_pagination.has_previous|lower }},
+        has_next: {{ county_pagination.has_next|lower }},
+        current_page: countyCurrentPage,
+        total_pages: {{ county_pagination.total_pages }}
+      });
+    }
+
+    // Update pagination controls
+    function updatePagination(dataset, pagination) {
+      let containerId = '';
+      let currentPage = pagination.current_page;
+      if (dataset === 'national') {
+        containerId = '#national-pagination-container';
+      } else if (dataset === 'state') {
+        containerId = '#state-pagination-container';
+      } else if (dataset === 'county') {
+        containerId = '#county-pagination-container';
+      }
+      const container = $(containerId);
+      container.empty();
+
+      if (pagination.has_previous) {
+        container.append(`<button onclick="setPage('${dataset}', 1)">First</button>`);
+        container.append(`<button onclick="setPage('${dataset}', ${currentPage - 1})">← Previous</button>`);
+      }
+
+      const lower = Math.max(1, pagination.current_page - 4);
+      const upper = Math.min(pagination.total_pages, pagination.current_page + 4);
+      for (let i = lower; i <= upper; i++) {
+        if (i === pagination.current_page) {
+          container.append(`<button class="active">${i}</button>`);
+        } else {
+          container.append(`<button onclick="setPage('${dataset}', ${i})">${i}</button>`);
+        }
+      }
+
+      if (pagination.has_next) {
+        container.append(`<button onclick="setPage('${dataset}', ${currentPage + 1})">Next →</button>`);
+        container.append(`<button onclick="setPage('${dataset}', ${pagination.total_pages})">Last</button>`);
+      }
+    }
+
+    // Set page and reload data
+    function setPage(dataset, page) {
+      if (dataset === 'national') {
+        nationalCurrentPage = page;
+      } else if (dataset === 'state') {
+        stateCurrentPage = page;
+      } else if (dataset === 'county') {
+        countyCurrentPage = page;
+      }
+      loadData();
+    }
+
+    // Initial load
+    $(document).ready(function() {
+      loadData();
+    });
+  </script>
 </body>
 </html>
