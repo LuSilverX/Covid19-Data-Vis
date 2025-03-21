@@ -4,7 +4,11 @@ from io import StringIO
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.core.paginator import Paginator
-from .models import CovidCountyData, CovidStateData, CovidUSData
+from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData
+import logging
+from .tasks import fetch_cdc_data  # Import the task
+
+logger = logging.getLogger(__name__)
 
 def get_paginated_data(request):
     # Get the page numbers from the request (default to 1)
@@ -89,86 +93,41 @@ def early_dashboard(request):
     }
     return render(request, 'early_dashboard.html', context)
 
+
 def live_dashboard(request):
     """
-    Fetches three dashboards:
-      1. US state-level data (CDC, endpoint: 9mfq-cb36.json)
-      2. US county-level data (CDC, endpoint: 8xkx-amqh.json)
-      3. Global data (WHO CSV)
-    Applies filters based on request parameters and paginates each dataset.
+    Fetches and displays COVID-19 data: US state data from the CDC COVID Data Tracker and global data from the WHO CSV.
+
+    Note: As of March 19, 2025, the CDC's state-level and county-level APIs (data.cdc.gov) are unavailable due to
+    compliance with Executive Order 14168, signed January 20, 2025. Users must rely on the CDC Data Tracker web
+    interface for current US data. This function automates downloading from the Tracker for the selected state or US overall.
+
+    Args:
+        request: HTTP request object with optional GET parameters (selected_date, selected_state, etc.)
+    Returns:
+        Rendered 'live_dashboard.html' with paginated US and global data, or JSON for AJAX requests.
     """
-    # Get filter parameters from the request
-    selected_date = request.GET.get('date', '')
-    selected_country = request.GET.get('country', '')
-    selected_region = request.GET.get('region', '')
-    selected_county = request.GET.get('county', '')
+    # Get parameters from the request
+    selected_date = request.GET.get('selected_date', '')
+    selected_country = request.GET.get('selected_country', '')
+    selected_region = request.GET.get('selected_region', '')
+    selected_state = request.GET.get('selected_state', '').lower()
 
-    # --------------------------
-    # 1. US State-Level Data
-    # --------------------------
-    cdc_state_api_url = "https://data.cdc.gov/resource/9mfq-cb36.json"
-    cdc_state_params = {}
+    # Trigger the Celery task to fetch CDC data if filters are provided
+    if selected_state or selected_date:
+        fetch_cdc_data.delay(selected_state, selected_date)
+
+    # Retrieve CDC data from the database
+    us_data = CDCData.objects.all()
+    if selected_state:
+        us_data = us_data.filter(state__iexact=selected_state)
     if selected_date:
-        # Use a $where clause to match the date prefix (e.g., "2025-03-12%")
-        cdc_state_params["$where"] = f"submission_date like '{selected_date}%'"
-    if selected_region:
-        # Note: The state field often contains abbreviations (e.g., "CA" for California)
-        cdc_state_params['state'] = selected_region
+        us_data = us_data.filter(date=selected_date)
+    us_data = list(us_data.values('state', 'date', 'deaths_new', 'deaths_total'))
 
-    try:
-        state_response = requests.get(cdc_state_api_url, params=cdc_state_params, timeout=10)
-        state_response.raise_for_status()
-        us_state_data_raw = state_response.json()
-    except requests.RequestException as e:
-        print(f"CDC state-level API request failed: {e}")
-        us_state_data_raw = []
-
-    us_state_data = []
-    for record in us_state_data_raw:
-        us_state_data.append({
-            'state': record.get('state', ''),
-            'date': record.get('submission_date', '')[:10],
-            'cases_new': record.get('new_case', 0),
-            'cases_total': record.get('total_case', 0),
-            'deaths_new': record.get('new_death', 0),
-            'deaths_total': record.get('total_death', 0),
-        })
-
-    # --------------------------
-    # 2. US County-Level Data
-    # --------------------------
-    cdc_county_api_url = "https://data.cdc.gov/resource/8xkx-amqh.json"
-    cdc_county_params = {}
-    if selected_date:
-        cdc_county_params["$where"] = f"submission_date like '{selected_date}%'"
-    if selected_region:
-        cdc_county_params['state'] = selected_region
-    if selected_county:
-        cdc_county_params['county'] = selected_county
-
-    try:
-        county_response = requests.get(cdc_county_api_url, params=cdc_county_params, timeout=10)
-        county_response.raise_for_status()
-        us_county_data_raw = county_response.json()
-    except requests.RequestException as e:
-        print(f"CDC county-level API request failed: {e}")
-        us_county_data_raw = []
-
-    us_county_data = []
-    for record in us_county_data_raw:
-        us_county_data.append({
-            'state': record.get('state', ''),
-            'county': record.get('county', ''),
-            'date': record.get('submission_date', '')[:10],
-            'cases_new': record.get('new_case', 0),
-            'cases_total': record.get('total_case', 0),
-            'deaths_new': record.get('new_death', 0),
-            'deaths_total': record.get('total_death', 0),
-        })
-
-    # --------------------------
-    # 3. Global Data (WHO CSV)
-    # --------------------------
+    # ----------------------
+    # Global Data (WHO CSV)
+    # ----------------------
     global_csv_url = "https://covid19.who.int/WHO-COVID-19-global-data.csv"
     try:
         csv_response = requests.get(global_csv_url, timeout=10)
@@ -178,12 +137,11 @@ def live_dashboard(request):
         reader = csv.DictReader(csv_file)
         global_data_raw = list(reader)
     except requests.RequestException as e:
-        print(f"Failed to fetch WHO CSV data: {e}")
+        logger.error(f"Failed to fetch WHO CSV data: {e}")
         global_data_raw = []
 
     global_data = []
     for row in global_data_raw:
-        # Apply filtering for global data if provided.
         if selected_date and row.get('Date_reported') != selected_date:
             continue
         if selected_country and row.get('Country') != selected_country:
@@ -192,10 +150,10 @@ def live_dashboard(request):
             'date': row.get('Date_reported', ''),
             'country': row.get('Country', ''),
             'region': row.get('WHO_region', ''),
-            'cases_new': row.get('New_cases', 0),
-            'cases_total': row.get('Cumulative_cases', 0),
-            'deaths_new': row.get('New_deaths', 0),
-            'deaths_total': row.get('Cumulative_deaths', 0),
+            'cases_new': int(row.get('New_cases', 0)),
+            'cases_total': int(row.get('Cumulative_cases', 0)),
+            'deaths_new': int(row.get('New_deaths', 0)),
+            'deaths_total': int(row.get('Cumulative_deaths', 0)),
             'recovered_new': 0,
             'recovered_total': 0,
         })
@@ -204,38 +162,26 @@ def live_dashboard(request):
     # Pagination
     # --------------------------
     entries_per_page = 10
+    us_paginator = Paginator(us_data, entries_per_page)
+    us_page = request.GET.get('us_page', 1)
+    us_page_obj = us_paginator.get_page(us_page)
 
-    state_paginator = Paginator(us_state_data, entries_per_page)
-    county_paginator = Paginator(us_county_data, entries_per_page)
     global_paginator = Paginator(global_data, entries_per_page)
-
-    state_page = request.GET.get('state_page', 1)
-    county_page = request.GET.get('county_page', 1)
     global_page = request.GET.get('global_page', 1)
-
-    state_page_obj = state_paginator.get_page(state_page)
-    county_page_obj = county_paginator.get_page(county_page)
     global_page_obj = global_paginator.get_page(global_page)
 
     context = {
         'selected_date': selected_date,
         'selected_country': selected_country,
         'selected_region': selected_region,
-        'selected_county': selected_county,
-        'us_state_data': state_page_obj,
-        'us_county_data': county_page_obj,
+        'selected_state': selected_state,
+        'us_data': us_page_obj,
         'global_data': global_page_obj,
-        'state_pagination': {
-            'has_next': state_page_obj.has_next(),
-            'has_previous': state_page_obj.has_previous(),
-            'current_page': state_page_obj.number,
-            'total_pages': state_paginator.num_pages,
-        },
-        'county_pagination': {
-            'has_next': county_page_obj.has_next(),
-            'has_previous': county_page_obj.has_previous(),
-            'current_page': county_page_obj.number,
-            'total_pages': county_paginator.num_pages,
+        'us_pagination': {
+            'has_next': us_page_obj.has_next(),
+            'has_previous': us_page_obj.has_previous(),
+            'current_page': us_page_obj.number,
+            'total_pages': us_paginator.num_pages,
         },
         'global_pagination': {
             'has_next': global_page_obj.has_next(),
@@ -243,9 +189,32 @@ def live_dashboard(request):
             'current_page': global_page_obj.number,
             'total_pages': global_paginator.num_pages,
         },
-        # Pagination ranges for template loops
-        'state_pagination_range': state_paginator.page_range,
-        'county_pagination_range': county_paginator.page_range,
+        'us_pagination_range': us_paginator.page_range,
         'global_pagination_range': global_paginator.page_range,
     }
+
+    # --------------------------
+    # AJAX Support
+    # --------------------------
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        us_data_list = list(us_page_obj)
+        global_data_list = list(global_page_obj)
+        response_data = {
+            'us_data': {
+                'object_list': us_data_list,
+                'has_next': us_page_obj.has_next(),
+                'has_previous': us_page_obj.has_previous(),
+                'current_page': us_page_obj.number,
+                'total_pages': us_paginator.num_pages,
+            },
+            'global_data': {
+                'object_list': global_data_list,
+                'has_next': global_page_obj.has_next(),
+                'has_previous': global_page_obj.has_previous(),
+                'current_page': global_page_obj.number,
+                'total_pages': global_paginator.num_pages,
+            },
+        }
+        return JsonResponse(response_data)
+
     return render(request, 'live_dashboard.html', context)

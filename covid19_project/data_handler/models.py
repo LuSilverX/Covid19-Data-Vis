@@ -39,3 +39,17 @@ class CovidUSData(models.Model):
 
     def __str__(self):
         return f"US - {self.date}: {self.cases} cases, {self.deaths} deaths"
+
+class CDCData(models.Model):
+    state = models.CharField(max_length=100)
+    date = models.CharField(max_length=20)
+    deaths_new = models.IntegerField(default=0)
+    deaths_total = models.IntegerField(default=0)
+    fetched_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('state', 'date')  # Prevent duplicates
+        ordering = ['-date']  # Latest dates first
+
+    def __str__(self):
+        return f"{self.state} - {self.date}"

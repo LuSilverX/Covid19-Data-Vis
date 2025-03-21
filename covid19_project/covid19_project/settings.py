@@ -18,7 +18,7 @@ import logging
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data'
 
-
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/

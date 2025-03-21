@@ -59,10 +59,13 @@
     tr:hover {
       background-color: #ddd;
     }
-    .error {
+    .error, .info {
       color: red;
       text-align: center;
       margin-bottom: 20px;
+    }
+    .info {
+      color: #007bff;
     }
     .back-link {
       display: block;
@@ -108,11 +111,68 @@
 
     <!-- Filter Form -->
     <form method="get" action="{% url 'live_data_page' %}">
-      <label for="date">Date (YYYY-MM-DD):</label>
-      <input type="text" id="date" name="date" value="{{ selected_date }}">
+      <label for="date">Date (YYYY-MM-DD or MMM DD YYYY):</label>
+      <input type="text" id="date" name="selected_date" value="{{ selected_date }}" placeholder="e.g., 2025-03-08 or Mar 8 2025">
 
-      <label for="country">Country:</label>
-      <select id="country" name="country">
+      <label for="state">US State:</label>
+      <select id="state" name="selected_state">
+        <option value="">All (United States)</option>
+        <option value="alabama" {% if selected_state == "alabama" %}selected{% endif %}>Alabama</option>
+        <option value="alaska" {% if selected_state == "alaska" %}selected{% endif %}>Alaska</option>
+        <option value="arizona" {% if selected_state == "arizona" %}selected{% endif %}>Arizona</option>
+        <option value="arkansas" {% if selected_state == "arkansas" %}selected{% endif %}>Arkansas</option>
+        <option value="california" {% if selected_state == "california" %}selected{% endif %}>California</option>
+        <option value="colorado" {% if selected_state == "colorado" %}selected{% endif %}>Colorado</option>
+        <option value="connecticut" {% if selected_state == "connecticut" %}selected{% endif %}>Connecticut</option>
+        <option value="delaware" {% if selected_state == "delaware" %}selected{% endif %}>Delaware</option>
+        <option value="district of columbia" {% if selected_state == "district of columbia" %}selected{% endif %}>District of Columbia</option>
+        <option value="florida" {% if selected_state == "florida" %}selected{% endif %}>Florida</option>
+        <option value="georgia" {% if selected_state == "georgia" %}selected{% endif %}>Georgia</option>
+        <option value="hawaii" {% if selected_state == "hawaii" %}selected{% endif %}>Hawaii</option>
+        <option value="idaho" {% if selected_state == "idaho" %}selected{% endif %}>Idaho</option>
+        <option value="illinois" {% if selected_state == "illinois" %}selected{% endif %}>Illinois</option>
+        <option value="indiana" {% if selected_state == "indiana" %}selected{% endif %}>Indiana</option>
+        <option value="iowa" {% if selected_state == "iowa" %}selected{% endif %}>Iowa</option>
+        <option value="kansas" {% if selected_state == "kansas" %}selected{% endif %}>Kansas</option>
+        <option value="kentucky" {% if selected_state == "kentucky" %}selected{% endif %}>Kentucky</option>
+        <option value="louisiana" {% if selected_state == "louisiana" %}selected{% endif %}>Louisiana</option>
+        <option value="maine" {% if selected_state == "maine" %}selected{% endif %}>Maine</option>
+        <option value="maryland" {% if selected_state == "maryland" %}selected{% endif %}>Maryland</option>
+        <option value="massachusetts" {% if selected_state == "massachusetts" %}selected{% endif %}>Massachusetts</option>
+        <option value="michigan" {% if selected_state == "michigan" %}selected{% endif %}>Michigan</option>
+        <option value="minnesota" {% if selected_state == "minnesota" %}selected{% endif %}>Minnesota</option>
+        <option value="mississippi" {% if selected_state == "mississippi" %}selected{% endif %}>Mississippi</option>
+        <option value="missouri" {% if selected_state == "missouri" %}selected{% endif %}>Missouri</option>
+        <option value="montana" {% if selected_state == "montana" %}selected{% endif %}>Montana</option>
+        <option value="nebraska" {% if selected_state == "nebraska" %}selected{% endif %}>Nebraska</option>
+        <option value="nevada" {% if selected_state == "nevada" %}selected{% endif %}>Nevada</option>
+        <option value="new hampshire" {% if selected_state == "new hampshire" %}selected{% endif %}>New Hampshire</option>
+        <option value="new jersey" {% if selected_state == "new jersey" %}selected{% endif %}>New Jersey</option>
+        <option value="new mexico" {% if selected_state == "new mexico" %}selected{% endif %}>New Mexico</option>
+        <option value="new york" {% if selected_state == "new york" %}selected{% endif %}>New York</option>
+        <option value="north carolina" {% if selected_state == "north carolina" %}selected{% endif %}>North Carolina</option>
+        <option value="north dakota" {% if selected_state == "north dakota" %}selected{% endif %}>North Dakota</option>
+        <option value="ohio" {% if selected_state == "ohio" %}selected{% endif %}>Ohio</option>
+        <option value="oklahoma" {% if selected_state == "oklahoma" %}selected{% endif %}>Oklahoma</option>
+        <option value="oregon" {% if selected_state == "oregon" %}selected{% endif %}>Oregon</option>
+        <option value="pennsylvania" {% if selected_state == "pennsylvania" %}selected{% endif %}>Pennsylvania</option>
+        <option value="rhode island" {% if selected_state == "rhode island" %}selected{% endif %}>Rhode Island</option>
+        <option value="south carolina" {% if selected_state == "south carolina" %}selected{% endif %}>South Carolina</option>
+        <option value="south dakota" {% if selected_state == "south dakota" %}selected{% endif %}>South Dakota</option>
+        <option value="tennessee" {% if selected_state == "tennessee" %}selected{% endif %}>Tennessee</option>
+        <option value="texas" {% if selected_state == "texas" %}selected{% endif %}>Texas</option>
+        <option value="utah" {% if selected_state == "utah" %}selected{% endif %}>Utah</option>
+        <option value="vermont" {% if selected_state == "vermont" %}selected{% endif %}>Vermont</option>
+        <option value="virginia" {% if selected_state == "virginia" %}selected{% endif %}>Virginia</option>
+        <option value="washington" {% if selected_state == "washington" %}selected{% endif %}>Washington</option>
+        <option value="west virginia" {% if selected_state == "west virginia" %}selected{% endif %}>West Virginia</option>
+        <option value="wisconsin" {% if selected_state == "wisconsin" %}selected{% endif %}>Wisconsin</option>
+        <option value="wyoming" {% if selected_state == "wyoming" %}selected{% endif %}>Wyoming</option>
+        <option value="new york city" {% if selected_state == "new york city" %}selected{% endif %}>New York City</option>
+      </select>
+
+      <label for="country">Country (WHO):</label>
+      <select id="country" name="selected_country">
         <option value="">All</option>
         <option value="United States" {% if selected_country == "United States" %}selected{% endif %}>United States</option>
         <option value="India" {% if selected_country == "India" %}selected{% endif %}>India</option>
@@ -121,151 +181,126 @@
         <option value="Germany" {% if selected_country == "Germany" %}selected{% endif %}>Germany</option>
       </select>
 
-      <label for="region">Region/State:</label>
-      <input type="text" id="region" name="region" value="{{ selected_region }}">
-
-      <label for="county">County:</label>
-      <input type="text" id="county" name="county" value="{{ selected_county }}">
+      <label for="region">WHO Region:</label>
+      <input type="text" id="region" name="selected_region" value="{{ selected_region }}" placeholder="e.g., AMRO">
 
       <button type="submit">Filter Data</button>
     </form>
 
-    <!-- US Dashboard -->
-    <section id="us-dashboard">
-      <h2>US Dashboard</h2>
-      <!-- State-Level Data -->
-      <h3>State-Level Data</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>State</th>
-            <th>Date</th>
-            <th>Cases (Total)</th>
-            <th>Cases (New)</th>
-            <th>Deaths (Total)</th>
-            <th>Deaths (New)</th>
-          </tr>
-        </thead>
-        <tbody id="us-state-data-tbody">
-          {% for entry in us_data %}
-            {% if entry.county == "" or entry.county == None %}
+    <!-- CDC Dashboard -->
+    <section id="cdc-dashboard">
+      <h2>CDC US Dashboard</h2>
+      {% if us_data %}
+        <table>
+          <thead>
+            <tr>
+              <th>State</th>
+              <th>Date</th>
+              <th>Deaths (New)</th>
+              <th>Deaths (Total)</th>
+            </tr>
+          </thead>
+          <tbody id="cdc-data-tbody">
+            {% for entry in us_data %}
               <tr>
-                <td>{{ entry.state }}</td>
+                <td>{{ entry.state|title }}</td>
                 <td>{{ entry.date }}</td>
-                <td>{{ entry.cases_total }}</td>
-                <td>{{ entry.cases_new }}</td>
-                <td>{{ entry.deaths_total }}</td>
                 <td>{{ entry.deaths_new }}</td>
+                <td>{{ entry.deaths_total|default:"N/A" }}</td>
               </tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
-
-      <!-- County-Level Data -->
-      <h3>County-Level Data</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>State</th>
-            <th>County</th>
-            <th>Date</th>
-            <th>Cases (Total)</th>
-            <th>Cases (New)</th>
-            <th>Deaths (Total)</th>
-            <th>Deaths (New)</th>
-          </tr>
-        </thead>
-        <tbody id="us-county-data-tbody">
-          {% for entry in us_data %}
-            {% if entry.county %}
+            {% empty %}
               <tr>
-                <td>{{ entry.state }}</td>
-                <td>{{ entry.county }}</td>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.cases_total }}</td>
-                <td>{{ entry.cases_new }}</td>
-                <td>{{ entry.deaths_total }}</td>
-                <td>{{ entry.deaths_new }}</td>
+                <td colspan="4" style="text-align:center;">No CDC data matches your filters.</td>
               </tr>
-            {% endif %}
-          {% endfor %}
-        </tbody>
-      </table>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="info">CDC data is being fetched. Please refresh the page in a moment.</p>
+      {% endif %}
 
-      <!-- US Pagination -->
-      <div class="pagination" id="us-pagination-container">
-        {% if us_pagination.has_previous %}
-          <button onclick="setPage('us', 1)">First</button>
-          <button onclick="setPage('us', {{ us_pagination.current_page|add:"-1" }})">← Previous</button>
-        {% endif %}
-        {% for i in us_pagination_range %}
-          {% if i == us_pagination.current_page %}
-            <button class="active">{{ i }}</button>
-          {% else %}
-            <button onclick="setPage('us', {{ i }})">{{ i }}</button>
+      <!-- CDC Pagination -->
+      {% if us_data and us_pagination.total_pages > 0 %}
+        <div class="pagination" id="cdc-pagination-container">
+          {% if us_pagination.has_previous %}
+            <button onclick="setPage('cdc', 1)">First</button>
+            <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'-1' }})">← Previous</button>
           {% endif %}
-        {% endfor %}
-        {% if us_pagination.has_next %}
-          <button onclick="setPage('us', {{ us_pagination.current_page|add:"1" }})">Next →</button>
-          <button onclick="setPage('us', {{ us_pagination.total_pages }})">Last</button>
-        {% endif %}
-      </div>
+          {% for i in us_pagination_range %}
+            {% if i == us_pagination.current_page %}
+              <button class="active">{{ i }}</button>
+            {% else %}
+              <button onclick="setPage('cdc', {{ i }})">{{ i }}</button>
+            {% endif %}
+          {% endfor %}
+          {% if us_pagination.has_next %}
+            <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'1' }})">Next →</button>
+            <button onclick="setPage('cdc', {{ us_pagination.total_pages }})">Last</button>
+          {% endif %}
+        </div>
+      {% endif %}
     </section>
 
     <hr>
 
-    <!-- Global Dashboard -->
-    <section id="global-dashboard">
-      <h2>Global Dashboard</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Country</th>
-            <th>WHO Region</th>
-            <th>Date Reported</th>
-            <th>Cases (Total)</th>
-            <th>Cases (New)</th>
-            <th>Deaths (Total)</th>
-            <th>Deaths (New)</th>
-            <th>Recovered (Total)</th>
-            <th>Recovered (New)</th>
-          </tr>
-        </thead>
-        <tbody id="global-data-tbody">
-          {% for entry in global_data %}
+    <!-- WHO Dashboard -->
+    <section id="who-dashboard">
+      <h2>WHO Global Dashboard</h2>
+      {% if global_data %}
+        <table>
+          <thead>
             <tr>
-              <td>{{ entry.country }}</td>
-              <td>{{ entry.region }}</td>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.cases_total }}</td>
-              <td>{{ entry.cases_new }}</td>
-              <td>{{ entry.deaths_total }}</td>
-              <td>{{ entry.deaths_new }}</td>
-              <td>{{ entry.recovered_total }}</td>
-              <td>{{ entry.recovered_new }}</td>
+              <th>Country</th>
+              <th>WHO Region</th>
+              <th>Date Reported</th>
+              <th>Cases (Total)</th>
+              <th>Cases (New)</th>
+              <th>Deaths (Total)</th>
+              <th>Deaths (New)</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <!-- Global Pagination -->
-      <div class="pagination" id="global-pagination-container">
-        {% if global_pagination.has_previous %}
-          <button onclick="setPage('global', 1)">First</button>
-          <button onclick="setPage('global', {{ global_pagination.current_page|add:"-1" }})">← Previous</button>
-        {% endif %}
-        {% for i in global_pagination_range %}
-          {% if i == global_pagination.current_page %}
-            <button class="active">{{ i }}</button>
-          {% else %}
-            <button onclick="setPage('global', {{ i }})">{{ i }}</button>
+          </thead>
+          <tbody id="who-data-tbody">
+            {% for entry in global_data %}
+              <tr>
+                <td>{{ entry.country }}</td>
+                <td>{{ entry.region }}</td>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.cases_total }}</td>
+                <td>{{ entry.cases_new }}</td>
+                <td>{{ entry.deaths_total }}</td>
+                <td>{{ entry.deaths_new }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" style="text-align:center;">No WHO data matches your filters.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="info">WHO data is unavailable. Please try again later.</p>
+      {% endif %}
+
+      <!-- WHO Pagination -->
+      {% if global_data and global_pagination.total_pages > 0 %}
+        <div class="pagination" id="who-pagination-container">
+          {% if global_pagination.has_previous %}
+            <button onclick="setPage('who', 1)">First</button>
+            <button onclick="setPage('who', {{ global_pagination.current_page|add:'-1' }})">← Previous</button>
           {% endif %}
-        {% endfor %}
-        {% if global_pagination.has_next %}
-          <button onclick="setPage('global', {{ global_pagination.current_page|add:"1" }})">Next →</button>
-          <button onclick="setPage('global', {{ global_pagination.total_pages }})">Last</button>
-        {% endif %}
-      </div>
+          {% for i in global_pagination_range %}
+            {% if i == global_pagination.current_page %}
+              <button class="active">{{ i }}</button>
+            {% else %}
+              <button onclick="setPage('who', {{ i }})">{{ i }}</button>
+            {% endif %}
+          {% endfor %}
+          {% if global_pagination.has_next %}
+            <button onclick="setPage('who', {{ global_pagination.current_page|add:'1' }})">Next →</button>
+            <button onclick="setPage('who', {{ global_pagination.total_pages }})">Last</button>
+          {% endif %}
+        </div>
+      {% endif %}
     </section>
 
     <a class="back-link" href="{% url 'main' %}">← Return to Main Page</a>
@@ -273,78 +308,114 @@
 
   <script>
     // Global page state for each dashboard
-    let usCurrentPage = {{ us_pagination.current_page|default:"1" }};
-    let globalCurrentPage = {{ global_pagination.current_page|default:"1" }};
+    let cdcCurrentPage = {{ us_pagination.current_page|default:"1" }};
+    let whoCurrentPage = {{ global_pagination.current_page|default:"1" }};
 
-    // Function to set page and reload data via AJAX.
+    // Function to set page and reload data via AJAX
     function setPage(dataset, page) {
-      if (dataset === 'us') {
-        usCurrentPage = page;
-      } else if (dataset === 'global') {
-        globalCurrentPage = page;
+      if (dataset === 'cdc') {
+        cdcCurrentPage = page;
+      } else if (dataset === 'who') {
+        whoCurrentPage = page;
       }
       loadData();
     }
 
     function loadData() {
       $.ajax({
-        url: '/live_data/',
+        url: '{% url "live_data_page" %}',
         data: {
-          date: "{{ selected_date }}",
-          country: "{{ selected_country }}",
-          region: "{{ selected_region }}",
-          county: "{{ selected_county }}",
-          us_page: usCurrentPage,
-          global_page: globalCurrentPage
+          selected_date: $("#date").val(),
+          selected_state: $("#state").val(),
+          selected_country: $("#country").val(),
+          selected_region: $("#region").val(),
+          us_page: cdcCurrentPage,
+          global_page: whoCurrentPage
         },
         method: 'GET',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
         success: function(response) {
-          // Update US Dashboard
-          let usStateHtml = '';
-          let usCountyHtml = '';
-          response.us_data.object_list.forEach(function(entry) {
-            if (!entry.county || entry.county === "") {
-              usStateHtml += '<tr>';
-              usStateHtml += '<td>' + entry.state + '</td>';
-              usStateHtml += '<td>' + entry.date + '</td>';
-              usStateHtml += '<td>' + entry.cases_total + '</td>';
-              usStateHtml += '<td>' + entry.cases_new + '</td>';
-              usStateHtml += '<td>' + entry.deaths_total + '</td>';
-              usStateHtml += '<td>' + entry.deaths_new + '</td>';
-              usStateHtml += '</tr>';
-            } else {
-              usCountyHtml += '<tr>';
-              usCountyHtml += '<td>' + entry.state + '</td>';
-              usCountyHtml += '<td>' + entry.county + '</td>';
-              usCountyHtml += '<td>' + entry.date + '</td>';
-              usCountyHtml += '<td>' + entry.cases_total + '</td>';
-              usCountyHtml += '<td>' + entry.cases_new + '</td>';
-              usCountyHtml += '<td>' + entry.deaths_total + '</td>';
-              usCountyHtml += '<td>' + entry.deaths_new + '</td>';
-              usCountyHtml += '</tr>';
+          // Update CDC Dashboard
+          let cdcHtml = '';
+          if (!response.us_data.object_list || response.us_data.object_list.length === 0) {
+            cdcHtml = '<tr><td colspan="4" style="text-align:center;">No CDC data matches your filters.</td></tr>';
+          } else {
+            response.us_data.object_list.forEach(function(entry) {
+              cdcHtml += '<tr>';
+              cdcHtml += '<td>' + entry.state.charAt(0).toUpperCase() + entry.state.slice(1) + '</td>';
+              cdcHtml += '<td>' + entry.date + '</td>';
+              cdcHtml += '<td>' + entry.deaths_new + '</td>';
+              cdcHtml += '<td>' + (entry.deaths_total || 'N/A') + '</td>';
+              cdcHtml += '</tr>';
+            });
+          }
+          $('#cdc-data-tbody').html(cdcHtml);
+
+          // Update CDC Pagination
+          let cdcPaginationHtml = '';
+          if (response.us_data.total_pages > 0) {
+            if (response.us_data.has_previous) {
+              cdcPaginationHtml += '<button onclick="setPage(\'cdc\', 1)">First</button>';
+              cdcPaginationHtml += '<button onclick="setPage(\'cdc\', ' + (response.us_data.current_page - 1) + ')">← Previous</button>';
             }
-          });
-          $('#us-state-data-tbody').html(usStateHtml);
-          $('#us-county-data-tbody').html(usCountyHtml);
+            for (let i = 1; i <= response.us_data.total_pages; i++) {
+              if (i === response.us_data.current_page) {
+                cdcPaginationHtml += '<button class="active">' + i + '</button>';
+              } else {
+                cdcPaginationHtml += '<button onclick="setPage(\'cdc\', ' + i + ')">' + i + '</button>';
+              }
+            }
+            if (response.us_data.has_next) {
+              cdcPaginationHtml += '<button onclick="setPage(\'cdc\', ' + (response.us_data.current_page + 1) + ')">Next →</button>';
+              cdcPaginationHtml += '<button onclick="setPage(\'cdc\', ' + response.us_data.total_pages + ')">Last</button>';
+            }
+          }
+          $('#cdc-pagination-container').html(cdcPaginationHtml);
 
-          // Update Global Dashboard
-          let globalHtml = '';
-          response.global_data.object_list.forEach(function(entry) {
-            globalHtml += '<tr>';
-            globalHtml += '<td>' + entry.country + '</td>';
-            globalHtml += '<td>' + entry.region + '</td>';
-            globalHtml += '<td>' + entry.date + '</td>';
-            globalHtml += '<td>' + entry.cases_total + '</td>';
-            globalHtml += '<td>' + entry.cases_new + '</td>';
-            globalHtml += '<td>' + entry.deaths_total + '</td>';
-            globalHtml += '<td>' + entry.deaths_new + '</td>';
-            globalHtml += '<td>' + entry.recovered_total + '</td>';
-            globalHtml += '<td>' + entry.recovered_new + '</td>';
-            globalHtml += '</tr>';
-          });
-          $('#global-data-tbody').html(globalHtml);
+          // Update WHO Dashboard
+          let whoHtml = '';
+          if (!response.global_data.object_list || response.global_data.object_list.length === 0) {
+            whoHtml = '<tr><td colspan="7" style="text-align:center;">No WHO data matches your filters.</td></tr>';
+          } else {
+            response.global_data.object_list.forEach(function(entry) {
+              whoHtml += '<tr>';
+              whoHtml += '<td>' + entry.country + '</td>';
+              whoHtml += '<td>' + entry.region + '</td>';
+              whoHtml += '<td>' + entry.date + '</td>';
+              whoHtml += '<td>' + entry.cases_total + '</td>';
+              whoHtml += '<td>' + entry.cases_new + '</td>';
+              whoHtml += '<td>' + entry.deaths_total + '</td>';
+              whoHtml += '<td>' + entry.deaths_new + '</td>';
+              whoHtml += '</tr>';
+            });
+          }
+          $('#who-data-tbody').html(whoHtml);
 
-          // (Optional) Update pagination controls via AJAX if desired.
+          // Update WHO Pagination
+          let whoPaginationHtml = '';
+          if (response.global_data.total_pages > 0) {
+            if (response.global_data.has_previous) {
+              whoPaginationHtml += '<button onclick="setPage(\'who\', 1)">First</button>';
+              whoPaginationHtml += '<button onclick="setPage(\'who\', ' + (response.global_data.current_page - 1) + ')">← Previous</button>';
+            }
+            for (let i = 1; i <= response.global_data.total_pages; i++) {
+              if (i === response.global_data.current_page) {
+                whoPaginationHtml += '<button class="active">' + i + '</button>';
+              } else {
+                whoPaginationHtml += '<button onclick="setPage(\'who\', ' + i + ')">' + i + '</button>';
+              }
+            }
+            if (response.global_data.has_next) {
+              whoPaginationHtml += '<button onclick="setPage(\'who\', ' + (response.global_data.current_page + 1) + ')">Next →</button>';
+              whoPaginationHtml += '<button onclick="setPage(\'who\', ' + response.global_data.total_pages + ')">Last</button>';
+            }
+          }
+          $('#who-pagination-container').html(whoPaginationHtml);
+        },
+        error: function(xhr, status, error) {
+          console.error('AJAX error:', error);
+          $('#cdc-data-tbody').html('<tr><td colspan="4" style="text-align:center;">Error fetching CDC data.</td></tr>');
+          $('#who-data-tbody').html('<tr><td colspan="7" style="text-align:center;">Error fetching WHO data.</td></tr>');
         }
       });
     }
