@@ -96,33 +96,25 @@ def early_dashboard(request):
 
 def live_dashboard(request):
     """
-    Fetches and displays COVID-19 data: US state data from the CDC COVID Data Tracker and global data from the WHO CSV.
-
-    Note: As of March 19, 2025, the CDC's state-level and county-level APIs (data.cdc.gov) are unavailable due to
-    compliance with Executive Order 14168, signed January 20, 2025. Users must rely on the CDC Data Tracker web
-    interface for current US data. This function automates downloading from the Tracker for the selected state or US overall.
-
-    Args:
-        request: HTTP request object with optional GET parameters (selected_date, selected_state, etc.)
-    Returns:
-        Rendered 'live_dashboard.html' with paginated US and global data, or JSON for AJAX requests.
+    Fetches and displays CDC and WHO COVID-19 data.
+    For CDC data, only state filtering is allowed (default is United States).
+    WHO data filtering remains separate.
     """
-    # Get parameters from the request
-    selected_date = request.GET.get('selected_date', '')
+    # Default selected_state to 'united states' if not provided.
+    selected_state = request.GET.get('selected_state', 'united states').lower()
+    # Remove date filtering for CDC data (selected_date not used for CDC)
+    # WHO filters remain unchanged.
     selected_country = request.GET.get('selected_country', '')
     selected_region = request.GET.get('selected_region', '')
-    selected_state = request.GET.get('selected_state', '').lower()
 
-    # Trigger the Celery task to fetch CDC data if filters are provided
-    if selected_state or selected_date:
-        fetch_cdc_data.delay(selected_state, selected_date)
+    # Trigger the Celery task to fetch CDC data (using selected_state)
+    if selected_state:
+        fetch_cdc_data.delay(selected_state, '')
 
-    # Retrieve CDC data from the database
+    # Retrieve CDC data from the database, filtered only by state.
     us_data = CDCData.objects.all()
     if selected_state:
         us_data = us_data.filter(state__iexact=selected_state)
-    if selected_date:
-        us_data = us_data.filter(date=selected_date)
     us_data = list(us_data.values('state', 'date', 'deaths_new', 'deaths_total'))
 
     # ----------------------
@@ -142,9 +134,9 @@ def live_dashboard(request):
 
     global_data = []
     for row in global_data_raw:
-        if selected_date and row.get('Date_reported') != selected_date:
-            continue
         if selected_country and row.get('Country') != selected_country:
+            continue
+        if selected_region and row.get('WHO_region') != selected_region:
             continue
         global_data.append({
             'date': row.get('Date_reported', ''),
@@ -158,9 +150,7 @@ def live_dashboard(request):
             'recovered_total': 0,
         })
 
-    # --------------------------
-    # Pagination
-    # --------------------------
+    # Pagination (remains unchanged)
     entries_per_page = 10
     us_paginator = Paginator(us_data, entries_per_page)
     us_page = request.GET.get('us_page', 1)
@@ -171,10 +161,9 @@ def live_dashboard(request):
     global_page_obj = global_paginator.get_page(global_page)
 
     context = {
-        'selected_date': selected_date,
+        'selected_state': selected_state,
         'selected_country': selected_country,
         'selected_region': selected_region,
-        'selected_state': selected_state,
         'us_data': us_page_obj,
         'global_data': global_page_obj,
         'us_pagination': {
@@ -193,22 +182,17 @@ def live_dashboard(request):
         'global_pagination_range': global_paginator.page_range,
     }
 
-    # --------------------------
-    # AJAX Support
-    # --------------------------
     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        us_data_list = list(us_page_obj)
-        global_data_list = list(global_page_obj)
         response_data = {
             'us_data': {
-                'object_list': us_data_list,
+                'object_list': list(us_page_obj),
                 'has_next': us_page_obj.has_next(),
                 'has_previous': us_page_obj.has_previous(),
                 'current_page': us_page_obj.number,
                 'total_pages': us_paginator.num_pages,
             },
             'global_data': {
-                'object_list': global_data_list,
+                'object_list': list(global_page_obj),
                 'has_next': global_page_obj.has_next(),
                 'has_previous': global_page_obj.has_previous(),
                 'current_page': global_page_obj.number,

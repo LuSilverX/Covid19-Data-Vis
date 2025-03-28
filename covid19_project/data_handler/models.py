@@ -44,6 +44,7 @@ class CDCData(models.Model):
     state = models.CharField(max_length=100)
     date = models.CharField(max_length=20)
     deaths_new = models.IntegerField(default=0)
+    data_as_of = models.CharField(max_length=20)
     deaths_total = models.IntegerField(default=0)
     fetched_at = models.DateTimeField(auto_now_add=True)
 

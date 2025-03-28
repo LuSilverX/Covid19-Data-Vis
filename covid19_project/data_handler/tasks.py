@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from .models import CDCData  # Import the model
+from .models import CDCData
 
 logger = logging.getLogger(__name__)
 
@@ -73,86 +73,169 @@ def fetch_cdc_data(selected_state, selected_date):
         "new york city": "57",
     }
 
-    # Determine the correct URL based on the user's input
+    # Determine the correct URL and state name
     selected_state = selected_state.lower()
     if selected_state and selected_state in state_codes:
         state_code = state_codes[selected_state]
         url = f"https://covid.cdc.gov/COVID-DATA-TRACKER/#trends_totaldeaths_select_{state_code}"
         state_name = selected_state.replace("united states", "United States").title()
     else:
-        # Default to overall US data
         url = "https://covid.cdc.gov/COVID-DATA-TRACKER/#trends_totaldeaths_select_00"
         state_name = "United States"
 
-    # Configure Selenium to run headlessly and set download directory
+    # Set up the download directory
+    download_dir = os.path.join(os.getcwd(), "cdc_downloads")
+    print("Download directory:", download_dir)
+    os.makedirs(download_dir, exist_ok=True)
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
-    download_dir = os.path.join(os.getcwd(), "cdc_downloads")
-    os.makedirs(download_dir, exist_ok=True)
-    prefs = {"download.default_directory": download_dir}
+    prefs = {
+        "download.default_directory": os.path.abspath(download_dir),
+        "download.prompt_for_download": False,
+        "download.directory_upgrade": True,
+    }
     options.add_experimental_option("prefs", prefs)
 
     driver = webdriver.Chrome(options=options)
+    csv_file_path = None
 
     try:
+        logger.info(f"Navigating to {url}")
         driver.get(url)
-        # Wait for the page body to load
-        WebDriverWait(driver, 10).until(
+        WebDriverWait(driver, 20).until(
             EC.presence_of_element_located((By.TAG_NAME, "body"))
         )
 
-        # Click the dropdown menu labeled "Weekly Deaths"
-        weekly_deaths_dropdown = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Weekly Deaths')]"))
-        )
-        weekly_deaths_dropdown.click()
+        # Step 1: Switch to "Cumulative Deaths" view if needed
+        try:
+            logger.info("Looking for 'Weekly Deaths' dropdown...")
+            weekly_deaths_dropdown = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Weekly Deaths')]"))
+            )
+            logger.info("Found 'Weekly Deaths' dropdown. Clicking...")
+            weekly_deaths_dropdown.click()
 
-        # Select the "Cumulative Deaths" option
-        cumulative_option = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Cumulative Deaths')]"))
-        )
-        cumulative_option.click()
+            logger.info("Looking for 'Cumulative Deaths' option...")
+            cumulative_option = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Cumulative Deaths')]"))
+            )
+            logger.info("Found 'Cumulative Deaths'. Clicking...")
+            cumulative_option.click()
+        except Exception as e:
+            logger.warning(f"Could not switch to 'Cumulative Deaths' view: {e}")
+            logger.info("Continuing to next step...")
 
-        # Scroll to and click the link that exposes the data table
-        data_table_link = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, f"//*[contains(text(), 'Data Table for Cumulative Deaths') and contains(text(), '{state_name}')]"))
+        # Step 2: Click the "Data Table for Cumulative Deaths" link
+        logger.info("Looking for 'Data Table for Cumulative Deaths' link...")
+        data_table_link = WebDriverWait(driver, 20).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, f"//*[contains(text(), 'Data Table for Cumulative Deaths') and contains(text(), '{state_name}')]")
+            )
         )
-        driver.execute_script("arguments[0].scrollIntoView();", data_table_link)
-        data_table_link.click()
+        logger.info("Found data table link. Scrolling into view and clicking...")
+        driver.execute_script("arguments[0].scrollIntoView(true);", data_table_link)
+        time.sleep(1)
+        driver.execute_script("arguments[0].click();", data_table_link)
 
-        # Wait for the "Data Download" button to become clickable, then click it
-        download_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.XPATH, "//*[text()='Data Download']"))
-        )
-        download_button.click()
+        # Step 3: Check for a Tableau iframe and switch to it if present
+        logger.info("Checking for Tableau iframe...")
+        try:
+            tableau_iframe = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, "//iframe[contains(@src, 'tableau')]"))
+            )
+            driver.switch_to.frame(tableau_iframe)
+            logger.info("Switched to Tableau iframe.")
+        except Exception as e:
+            logger.info(f"No Tableau iframe found: {e}")
 
-        # Pause to allow download to complete (adjust as needed)
-        time.sleep(5)
+        # Step 4: Locate the "Download Data" button
+        logger.info("Looking for 'Download Data' button...")
+        time.sleep(5)  # Pause to allow table data to load
+        try:
+            download_button = WebDriverWait(driver, 30).until(
+                EC.element_to_be_clickable((By.ID, "btnUSTrendsTableExport"))
+            )
+            logger.info("Found 'Download Data' button by ID.")
+        except Exception as e:
+            logger.warning(f"Failed to find 'Download Data' button by ID: {e}")
+            download_button = WebDriverWait(driver, 20).until(
+                EC.element_to_be_clickable(
+                    (By.XPATH, "//div[contains(@class, 'data-table-container') and contains(@id, 'usTrends-table-container')]//button[contains(text(), 'Download Data')]")
+                )
+            )
+            logger.info("Found 'Download Data' button via XPath.")
 
-        # Locate the most recently downloaded CSV file
-        csv_file_path = max(
-            [os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.endswith('.csv')],
-            key=os.path.getctime
-        )
+        # Step 5: Click the "Download Data" button
+        driver.execute_script("arguments[0].scrollIntoView(true);", download_button)
+        time.sleep(1)
+        driver.execute_script("arguments[0].click();", download_button)
+        logger.info("Clicked 'Download Data' button.")
+
+        # Step 6: Check for any new windows or tabs and handle them
+        original_window = driver.current_window_handle
+        for window_handle in driver.window_handles:
+            if window_handle != original_window:
+                driver.switch_to.window(window_handle)
+                logger.info(f"Switched to new window/tab. URL: {driver.current_url}")
+                time.sleep(5)  # Allow any actions to complete in the new tab
+                driver.close()
+                driver.switch_to.window(original_window)
+                logger.info("Closed new window/tab and switched back to original window.")
+                break
+
+        # Step 7: Check for a modal (e.g., a Tableau dialog) offering CSV download
+        try:
+            logger.info("Checking for a modal...")
+            modal = WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div[role='dialog'], div.modal, div.tableau-dialog"))
+            )
+            logger.info("Modal found. Looking for CSV option...")
+            csv_option = WebDriverWait(driver, 5).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'CSV')]"))
+            )
+            driver.execute_script("arguments[0].click();", csv_option)
+            logger.info("Clicked CSV option in modal.")
+        except Exception as e:
+            logger.info(f"No modal found or error interacting with modal: {e}")
+
+        # Step 8: Switch back to the main content (if in an iframe)
+        driver.switch_to.default_content()
+
+        # Step 9: Pause to allow the download to initiate
+        logger.info("Pausing for a few seconds to allow download to start...")
+        time.sleep(15)
+
+        # Step 10: Locate the most recently downloaded CSV file
+        csv_files = [os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.endswith('.csv')]
+        if csv_files:
+            csv_file_path = max(csv_files, key=os.path.getctime)
+            logger.info(f"CSV downloaded: {os.path.basename(csv_file_path)}")
+        else:
+            logger.error("No CSV file found in the download directory.")
+            return
 
         # Read and process the CSV file
+        print("Files in download directory:", os.listdir(download_dir))
         with open(csv_file_path, 'r') as f:
             csv_text = f.read()
         csv_file = StringIO(csv_text)
         reader = csv.DictReader(csv_file)
 
-        # Save data to the database
+        # Save or update data in the database based on the selected date
         for row in reader:
             if selected_date and row.get('Date') != selected_date:
                 continue
             state = row.get('Geography', state_name)
             date = row.get('Date', '')
-            deaths_total = int(row.get('Cumulative Deaths', 0) if row.get('Cumulative Deaths') != "Counts 1-9" else 0)
-            deaths_new = 0  # Placeholder (calculate if previous data available)
+            deaths_total = int(
+                row.get('Cumulative Deaths', 0)
+                if row.get('Cumulative Deaths') != "Counts 1-9" else 0
+            )
+            deaths_new = 0  # Placeholder: implement calculation if previous data is available
 
-            # Save or update the record in the database
             CDCData.objects.update_or_create(
                 state=state,
                 date=date,
@@ -161,10 +244,11 @@ def fetch_cdc_data(selected_state, selected_date):
                     'deaths_new': deaths_new,
                 }
             )
+        logger.info(f"CDC data for {state_name} on {selected_date} processed successfully.")
 
     except Exception as e:
         logger.error(f"Failed to fetch CDC data for {state_name}: {e}")
     finally:
         driver.quit()
-        if 'csv_file_path' in locals() and os.path.exists(csv_file_path):
-            os.remove(csv_file_path)
+       # if csv_file_path and os.path.exists(csv_file_path):
+      #      os.remove(csv_file_path)
