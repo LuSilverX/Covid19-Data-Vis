@@ -90,7 +90,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -147,8 +146,33 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+#logging.basicConfig(level=logging.INFO)
+#logger = logging.getLogger(__name__)
 
-logger.info(f"BASE_DIR: {BASE_DIR}")
-logger.info(f"DATA_DIR: {DATA_DIR}")
+#logger.info(f"BASE_DIR: {BASE_DIR}")
+#logger.info(f"DATA_DIR: {DATA_DIR}")
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{asctime}] {levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',  # Ensure this is DEBUG to capture all messages
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        '': {  # Root logger
+            'handlers': ['console'],
+            'level': 'DEBUG',  # Ensure this is DEBUG
+            'propagate': True,
+        },
+    },
+}
