@@ -100,6 +100,7 @@ def live_dashboard(request):
     For CDC data, only state filtering is allowed (default is United States).
     WHO data filtering remains separate.
     """
+    logger.info("Entering live_data_page view")
     # Default selected_state to 'united states' if not provided.
     selected_state = request.GET.get('selected_state', 'united states').lower()
     # Remove date filtering for CDC data (selected_date not used for CDC)
@@ -115,41 +116,71 @@ def live_dashboard(request):
     us_data = CDCData.objects.all()
     if selected_state:
         us_data = us_data.filter(state__iexact=selected_state)
-    us_data = list(us_data.values('state', 'date', 'deaths_new', 'deaths_total'))
-
+    us_data = list(us_data.values('state', 'date', 'deaths_total'))
     # ----------------------
     # Global Data (WHO CSV)
     # ----------------------
     global_csv_url = "https://covid19.who.int/WHO-COVID-19-global-data.csv"
     try:
-        csv_response = requests.get(global_csv_url, timeout=10)
+        headers = {
+            'User-Agent': (
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                'AppleWebKit/537.36 (KHTML, like Gecko) '
+                'Chrome/90.0.4430.93 Safari/537.36'
+            )
+        }
+        csv_response = requests.get(global_csv_url, headers=headers, timeout=10)
         csv_response.raise_for_status()
         csv_text = csv_response.text
+
+        logger.info(f"Fetched WHO CSV: {len(csv_text)} characters")
+        logger.debug(f"CSV content (first 100 chars): {csv_text[:100]}")
+        logger.debug(f"WHO CSV Content-Type: {csv_response.headers.get('Content-Type')}")
+        logger.debug(f"Final URL after redirects: {csv_response.url}")
+        logger.debug(f"WHO CSV first 300 chars: {csv_text[:300]}")
+
         csv_file = StringIO(csv_text)
         reader = csv.DictReader(csv_file)
+        logger.debug(f"CSV header fields: {reader.fieldnames}")
+
         global_data_raw = list(reader)
+        logger.info(f"Parsed {len(global_data_raw)} rows from WHO CSV")
     except requests.RequestException as e:
         logger.error(f"Failed to fetch WHO CSV data: {e}")
         global_data_raw = []
 
     global_data = []
-    for row in global_data_raw:
-        if selected_country and row.get('Country') != selected_country:
-            continue
-        if selected_region and row.get('WHO_region') != selected_region:
-            continue
-        global_data.append({
-            'date': row.get('Date_reported', ''),
-            'country': row.get('Country', ''),
-            'region': row.get('WHO_region', ''),
-            'cases_new': int(row.get('New_cases', 0)),
-            'cases_total': int(row.get('Cumulative_cases', 0)),
-            'deaths_new': int(row.get('New_deaths', 0)),
-            'deaths_total': int(row.get('Cumulative_deaths', 0)),
-            'recovered_new': 0,
-            'recovered_total': 0,
-        })
+    # Normalize filter values for comparison.
+    selected_country_norm = selected_country.strip().lower() if selected_country else ''
+    selected_region_norm = selected_region.strip().lower() if selected_region else ''
 
+    for row in global_data_raw:
+        # Normalize CSV country/region values.
+        country = row.get('Country', '').strip().lower()
+        region = row.get('WHO_region', '').strip().lower() if row.get('WHO_region') else ''
+
+        # Instead of exact equality, use substring matching.
+        if selected_country_norm and selected_country_norm not in country:
+            continue
+        if selected_region_norm and selected_region_norm not in region:
+            continue
+
+        try:
+            global_data.append({
+                'date': row.get('Date_reported', '').strip(),
+                'country': row.get('Country', '').strip(),
+                'region': row.get('WHO_region', '').strip(),
+                'cases_new': int(row.get('New_cases', 0)),
+                'cases_total': int(row.get('Cumulative_cases', 0)),
+                'deaths_new': int(row.get('New_deaths', 0)),
+                'deaths_total': int(row.get('Cumulative_deaths', 0)),
+                'recovered_new': 0,
+                'recovered_total': 0,
+            })
+        except ValueError as ve:
+            logger.error(f"Data conversion error for row {row}: {ve}")
+
+    logger.info(f"Final global_data has {len(global_data)} entries")
     # Pagination (remains unchanged)
     entries_per_page = 10
     us_paginator = Paginator(us_data, entries_per_page)

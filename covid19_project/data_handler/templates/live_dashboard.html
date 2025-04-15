@@ -99,30 +99,28 @@
     <section id="cdc-dashboard">
       <h2>CDC US Dashboard</h2>
       {% if us_data %}
-        <table>
-          <thead>
+      <table>
+        <thead>
+          <tr>
+            <th>State</th>
+            <th>Date</th>
+            <th>Deaths (Total)</th>
+          </tr>
+        </thead>
+        <tbody id="cdc-data-tbody">
+          {% for entry in us_data %}
             <tr>
-              <th>State</th>
-              <th>Date</th>
-              <th>Deaths (New)</th>
-              <th>Deaths (Total)</th>
+              <td>{{ entry.state|title }}</td>
+              <td>{{ entry.date }}</td>
+              <td>{{ entry.deaths_total|default:"N/A" }}</td>
             </tr>
-          </thead>
-          <tbody id="cdc-data-tbody">
-            {% for entry in us_data %}
-              <tr>
-                <td>{{ entry.state|title }}</td>
-                <td>{{ entry.date }}</td>
-                <td>{{ entry.deaths_new }}</td>
-                <td>{{ entry.deaths_total|default:"N/A" }}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="4" style="text-align:center;">No CDC data matches your filter.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+          {% empty %}
+            <tr>
+              <td colspan="3" style="text-align:center;">No CDC data matches your filter.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
       {% else %}
         <p class="info">CDC data is being fetched. Please refresh the page shortly.</p>
       {% endif %}
@@ -257,12 +255,27 @@
         method: 'GET',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         success: function(response) {
-          // Update CDC Dashboard and Pagination (similar to your original AJAX logic)
+          // Update CDC table
+          let cdcHtml = '';
+          if (response.us_data.object_list.length > 0) {
+            response.us_data.object_list.forEach(entry => {
+              cdcHtml += `
+                <tr>
+                  <td>${entry.state.charAt(0).toUpperCase() + entry.state.slice(1)}</td>
+                  <td>${entry.date}</td>
+                  <td>${entry.deaths_total || 'N/A'}</td>
+                </tr>
+              `;
+            });
+          } else {
+            cdcHtml = '<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>';
+          }
+          $('#cdc-data-tbody').html(cdcHtml);
           // Update WHO Dashboard and Pagination (similar to your original AJAX logic)
         },
         error: function(xhr, status, error) {
           console.error('AJAX error:', error);
-          $('#cdc-data-tbody').html('<tr><td colspan="4" style="text-align:center;">Error fetching CDC data.</td></tr>');
+          $('#cdc-data-tbody').html('<tr><td colspan="3" style="text-align:center;">Error fetching CDC data.</td></tr>');
           $('#who-data-tbody').html('<tr><td colspan="7" style="text-align:center;">Error fetching WHO data.</td></tr>');
         }
       });

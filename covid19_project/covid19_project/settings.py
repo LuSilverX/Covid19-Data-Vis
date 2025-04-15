@@ -157,22 +157,45 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '[{asctime}] {levelname} {message}',
+            # Added {name} so you can see which logger is emitting each message.
+            'format': '[{asctime}] {levelname} {name}: {message}',
             'style': '{',
         },
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG',  # Ensure this is DEBUG to capture all messages
+            # Keep the console handler at DEBUG for your own code.
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
     },
     'loggers': {
-        '': {  # Root logger
+        # The root logger will catch everything from your project.
+        '': {
             'handlers': ['console'],
-            'level': 'DEBUG',  # Ensure this is DEBUG
+            'level': 'DEBUG',
             'propagate': True,
         },
+        # Suppress third-party verbose debug messages from Selenium.
+        'selenium': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Suppress verbose logs from the underlying HTTP libraries.
+        'urllib3': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # Also, silence excessive logs coming from the remote connection in WebDriver.
+        'selenium.webdriver.remote.remote_connection': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        # If you have other third-party loggers that are noisy (like 'requests'),
+        # you can add them here similarly.
     },
 }
