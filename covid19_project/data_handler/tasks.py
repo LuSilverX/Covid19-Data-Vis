@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task
 def fetch_cdc_data(selected_state, selected_date):
+    logger.error("!!!!!!!!!! fetch_cdc_data TASK STARTED !!!!!!!!!!!")
     # Dictionary mapping states to their CDC codes
     state_codes = {
         "united states": "00",
@@ -221,34 +222,72 @@ def fetch_cdc_data(selected_state, selected_date):
         print("Files in download directory:", os.listdir(download_dir))
         with open(csv_file_path, 'r') as f:
             csv_text = f.read()
-        csv_file = StringIO(csv_text)
+
+        # Add these lines right after opening the CSV file
+        with open(csv_file_path, 'r') as f:
+            csv_text = f.read()
+            sample_lines = csv_text.strip().split('\n')[:5]  # Get first 5 lines
+            logger.info(f"Sample CSV data: {sample_lines}")
+            
+        # Check if the CSV contains headers and data
+        csv_lines = csv_text.strip().split('\n')
+        if len(csv_lines) < 4:  # Title, date generated, headers, and at least one data row
+            logger.error(f"CSV file doesn't contain expected data structure: {csv_file_path}")
+            return
+
+        # Skip the title line and date generated line
+        # The first two lines typically contain:
+        # Line 1: "Data Table for Cumulative Deaths - The United States"
+        # Line 2: "Date generated: Mon Apr 14 2025 23:37:58 GMT-0700 (Pacific Daylight Time)"
+        csv_file = StringIO('\n'.join(csv_lines[2:]))
         reader = csv.DictReader(csv_file)
 
-        # Save or update data in the database based on the selected date
+        # Clear existing data for this state to prevent duplicate entries
+        if not selected_date:
+            # Only clear all state data if not filtering by date
+            CDCData.objects.filter(state__iexact=selected_state).delete()
+            logger.info(f"Cleared existing data for {selected_state}")
+
+        # Save or update data in the database
+        rows_processed = 0
         for row in reader:
             if selected_date and row.get('Date') != selected_date:
                 continue
-            state = row.get('Geography', state_name)
+                
+            # The CSV fields are: Geography, Date, Cumulative Deaths, Death Data As Of
+            state = row.get('Geography', '').lower()
             date = row.get('Date', '')
-            deaths_total = int(
-                row.get('Cumulative Deaths', 0)
-                if row.get('Cumulative Deaths') != "Counts 1-9" else 0
-            )
-            deaths_new = 0  # Placeholder: implement calculation if previous data is available
-
+            
+            # Handle special case for very small counts
+            deaths_value = row.get('Cumulative Deaths', '0')
+            if deaths_value == "Counts 1-9" or not deaths_value.strip():
+                deaths_total = 0
+            else:
+                try:
+                    deaths_total = int(deaths_value)
+                except ValueError:
+                    deaths_total = 0
+                    logger.warning(f"Could not convert '{deaths_value}' to integer for {state} on {date}")
+            
+            # Add data_as_of field value
+            data_as_of = row.get('Death Data As Of', '')
+            
+            # Create or update the record
             CDCData.objects.update_or_create(
                 state=state,
                 date=date,
                 defaults={
                     'deaths_total': deaths_total,
-                    'deaths_new': deaths_new,
+                    'data_as_of': data_as_of
                 }
             )
-        logger.info(f"CDC data for {state_name} on {selected_date} processed successfully.")
+            rows_processed += 1
+            
+        logger.info(f"CDC data for {selected_state}: {rows_processed} rows processed successfully.")
 
     except Exception as e:
-        logger.error(f"Failed to fetch CDC data for {state_name}: {e}")
+        logger.error(f"Failed to fetch CDC data for {selected_state}: {e}")
     finally:
         driver.quit()
-       # if csv_file_path and os.path.exists(csv_file_path):
-      #      os.remove(csv_file_path)
+        if csv_file_path and os.path.exists(csv_file_path):
+            os.remove(csv_file_path)

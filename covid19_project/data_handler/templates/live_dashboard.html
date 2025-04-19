@@ -15,9 +15,12 @@
     th { background-color: #007bff; color: white; }
     tr:nth-child(even) { background-color: #f2f2f2; }
     tr:hover { background-color: #ddd; }
-    .error, .info { text-align: center; margin-bottom: 20px; }
-    .error { color: red; }
-    .info { color: #007bff; }
+    .error, .info { text-align: center; margin-bottom: 20px; padding: 10px; }
+    .error { color: red; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 5px; }
+    .info { color: #007bff; background-color: #e3f2fd; border: 1px solid #bbdefb; border-radius: 5px; }
+    .loading { display: flex; justify-content: center; margin: 20px 0; }
+    .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #007bff; }
     .pagination { margin-top: 10px; text-align: center; }
     .pagination button { padding: 5px 10px; margin: 2px; border: 1px solid #007bff; color: #007bff; border-radius: 5px; background-color: #fff; cursor: pointer; font-size: 14px; }
@@ -98,51 +101,85 @@
     <!-- CDC Dashboard -->
     <section id="cdc-dashboard">
       <h2>CDC US Dashboard</h2>
-      {% if us_data %}
-      <table>
-        <thead>
-          <tr>
-            <th>State</th>
-            <th>Date</th>
-            <th>Deaths (Total)</th>
-          </tr>
-        </thead>
-        <tbody id="cdc-data-tbody">
-          {% for entry in us_data %}
+      {% if cdc_data_exists %}
+        <table>
+          <thead>
             <tr>
-              <td>{{ entry.state|title }}</td>
-              <td>{{ entry.date }}</td>
-              <td>{{ entry.deaths_total|default:"N/A" }}</td>
+              <th>State</th>
+              <th>Date</th>
+              <th>Deaths (Total)</th>
             </tr>
-          {% empty %}
-            <tr>
-              <td colspan="3" style="text-align:center;">No CDC data matches your filter.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-        <p class="info">CDC data is being fetched. Please refresh the page shortly.</p>
-      {% endif %}
-      <!-- CDC Pagination (if applicable) -->
-      {% if us_data and us_pagination.total_pages > 0 %}
-        <div class="pagination" id="cdc-pagination-container">
-          {% if us_pagination.has_previous %}
-            <button onclick="setPage('cdc', 1)">First</button>
-            <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'-1' }})">← Previous</button>
-          {% endif %}
-          {% for i in us_pagination_range %}
-            {% if i == us_pagination.current_page %}
-              <button class="active">{{ i }}</button>
-            {% else %}
-              <button onclick="setPage('cdc', {{ i }})">{{ i }}</button>
+          </thead>
+          <tbody id="cdc-data-tbody">
+            {% for entry in us_data %}
+              <tr>
+                <td>{{ entry.state|title }}</td>
+                <td>{{ entry.date }}</td>
+                <td>{% if entry.deaths_total == 0 %}0{% else %}{{ entry.deaths_total|default:"N/A" }}{% endif %}</td>              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" style="text-align:center;">No CDC data matches your filter.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        
+        <!-- CDC Pagination (if applicable) -->
+        {% if us_pagination.total_pages > 0 %}
+          <div class="pagination" id="cdc-pagination-container">
+            {% if us_pagination.has_previous %}
+              <button onclick="setPage('cdc', 1)">First</button>
+              <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'-1' }})">← Previous</button>
             {% endif %}
-          {% endfor %}
-          {% if us_pagination.has_next %}
-            <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'1' }})">Next →</button>
-            <button onclick="setPage('cdc', {{ us_pagination.total_pages }})">Last</button>
-          {% endif %}
+            {% for i in us_pagination_range %}
+              {% if i == us_pagination.current_page %}
+                <button class="active">{{ i }}</button>
+              {% else %}
+                <button onclick="setPage('cdc', {{ i }})">{{ i }}</button>
+              {% endif %}
+            {% endfor %}
+            {% if us_pagination.has_next %}
+              <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'1' }})">Next →</button>
+              <button onclick="setPage('cdc', {{ us_pagination.total_pages }})">Last</button>
+            {% endif %}
+          </div>
+        {% endif %}
+        {% elif cdc_task_error %}
+          <div class="error">
+              <p>Error fetching data for "{{ selected_state|title }}": {{ cdc_task_error }}</p>
+              <p>Please try again later or select a different state.</p>
+          </div>
+      {% else %}
+        <div class="info">
+          <p>COVID-19 data for "{{ selected_state|title }}" is being fetched from CDC...</p>
+          <div class="loading">
+            <div class="loading-spinner"></div>
+          </div>
+          <p>This may take a moment. The data will appear automatically when ready.</p>
         </div>
+        
+        <!-- Auto-refresh script for data loading -->
+        <script>
+          // Check data status every 5 seconds
+          const dataCheckInterval = setInterval(function() {
+            $.ajax({
+              url: '{% url "live_data_page" %}',
+              data: {
+                selected_state: "{{ selected_state }}",
+                us_page: 1
+              },
+              method: 'GET',
+              headers: { 'X-Requested-With': 'XMLHttpRequest' },
+              success: function(response) {
+                // If data is now available, reload the page to show it
+                if (response.us_data.cdc_data_exists) {
+                  clearInterval(dataCheckInterval);
+                  window.location.reload();
+                }
+              }
+            });
+          }, 5000);
+        </script>
       {% endif %}
     </section>
 
@@ -255,23 +292,28 @@
         method: 'GET',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         success: function(response) {
-          // Update CDC table
-          let cdcHtml = '';
-          if (response.us_data.object_list.length > 0) {
-            response.us_data.object_list.forEach(entry => {
-              cdcHtml += `
-                <tr>
-                  <td>${entry.state.charAt(0).toUpperCase() + entry.state.slice(1)}</td>
-                  <td>${entry.date}</td>
-                  <td>${entry.deaths_total || 'N/A'}</td>
-                </tr>
-              `;
-            });
-          } else {
-            cdcHtml = '<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>';
+          // Check if CDC data exists first
+          if (response.us_data.cdc_data_exists) {
+            // Update CDC table
+            let cdcHtml = '';
+            if (response.us_data.object_list.length > 0) {
+              response.us_data.object_list.forEach(entry => {
+                cdcHtml += `
+                  <tr>
+                    <td>${entry.state.charAt(0).toUpperCase() + entry.state.slice(1)}</td>
+                    <td>${entry.date}</td>
+                    <td>${entry.deaths_total || 'N/A'}</td>
+                  </tr>
+                `;
+              });
+            } else {
+              cdcHtml = '<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>';
+            }
+            $('#cdc-data-tbody').html(cdcHtml);
           }
-          $('#cdc-data-tbody').html(cdcHtml);
-          // Update WHO Dashboard and Pagination (similar to your original AJAX logic)
+          
+          // Update WHO table (unchanged)
+          // ... your WHO update code here ...
         },
         error: function(xhr, status, error) {
           console.error('AJAX error:', error);

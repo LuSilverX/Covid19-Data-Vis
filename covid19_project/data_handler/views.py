@@ -101,22 +101,46 @@ def live_dashboard(request):
     WHO data filtering remains separate.
     """
     logger.info("Entering live_data_page view")
+    
     # Default selected_state to 'united states' if not provided.
     selected_state = request.GET.get('selected_state', 'united states').lower()
+    
     # Remove date filtering for CDC data (selected_date not used for CDC)
     # WHO filters remain unchanged.
     selected_country = request.GET.get('selected_country', '')
     selected_region = request.GET.get('selected_region', '')
 
-    # Trigger the Celery task to fetch CDC data (using selected_state)
-    if selected_state:
-        fetch_cdc_data.delay(selected_state, '')
-
     # Retrieve CDC data from the database, filtered only by state.
     us_data = CDCData.objects.all()
     if selected_state:
         us_data = us_data.filter(state__iexact=selected_state)
+        
+    # Check if CDC data exists for the selected state
+    cdc_data_exists = us_data.exists()
+    
+    # Log the query results
+    logger.info(f"Query for {selected_state} returned {us_data.count()} results")
+    
+
+    # Trigger the Celery task ONLY on initial page load if data doesn't exist
+    # AND NOT during an AJAX poll.
+    if selected_state and not cdc_data_exists and not request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        logger.info(f"Queueing fetch_cdc_data task for {selected_state} as data doesn't exist and it's not an AJAX request.")
+        fetch_cdc_data.delay(selected_state, '')
+    elif not cdc_data_exists and request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        logger.info(f"AJAX poll for {selected_state}: Data still not found.")
+    
+    # Check for errors
+    from django.core.cache import cache  # Make sure to import cache
+    cdc_task_error = None
+    if not cdc_data_exists:
+        # Check if task has previously failed
+        cache_key = f"cdc_task_error_{selected_state}"
+        cdc_task_error = cache.get(cache_key)
+    
+    # Convert to list after checking existence
     us_data = list(us_data.values('state', 'date', 'deaths_total'))
+    
     # ----------------------
     # Global Data (WHO CSV)
     # ----------------------
@@ -181,7 +205,8 @@ def live_dashboard(request):
             logger.error(f"Data conversion error for row {row}: {ve}")
 
     logger.info(f"Final global_data has {len(global_data)} entries")
-    # Pagination (remains unchanged)
+    
+    # Pagination (this was missing in your version)
     entries_per_page = 10
     us_paginator = Paginator(us_data, entries_per_page)
     us_page = request.GET.get('us_page', 1)
@@ -197,6 +222,8 @@ def live_dashboard(request):
         'selected_region': selected_region,
         'us_data': us_page_obj,
         'global_data': global_page_obj,
+        'cdc_data_exists': cdc_data_exists,
+        'cdc_task_error': cdc_task_error,
         'us_pagination': {
             'has_next': us_page_obj.has_next(),
             'has_previous': us_page_obj.has_previous(),
@@ -221,6 +248,7 @@ def live_dashboard(request):
                 'has_previous': us_page_obj.has_previous(),
                 'current_page': us_page_obj.number,
                 'total_pages': us_paginator.num_pages,
+                'cdc_data_exists': cdc_data_exists,
             },
             'global_data': {
                 'object_list': list(global_page_obj),
