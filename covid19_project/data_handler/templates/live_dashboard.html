@@ -24,10 +24,21 @@
     .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #007bff; }
     .pagination { margin-top: 10px; text-align: center; }
     .pagination button { padding: 5px 10px; margin: 2px; border: 1px solid #007bff; color: #007bff; border-radius: 5px; background-color: #fff; cursor: pointer; font-size: 14px; }
-    .pagination button.active { background-color: #007bff; color: white; }
+    .pagination button.active { background-color: #007bff; color: white; cursor: default; }
+    .pagination button:disabled { background-color: #e9ecef; color: #6c757d; border-color: #dee2e6; cursor: not-allowed;}
+    .pagination button:disabled {
+        padding: 5px 10px; 
+        margin: 2px; 
+        text-decoration: none; 
+        border: 1px solid #007bff; 
+        color: #007bff; 
+        border-radius: 5px; 
+        background-color: #fff; 
+        cursor: default; 
+        opacity: 0.65; 
+    }
     hr { margin: 40px 0; border: 0; border-top: 2px solid #007bff; }
-    /* Style for the new button */
-    .info button {
+    .info button { /* 'Why the wait?' button */
         margin-top: 15px;
         padding: 5px 10px;
         cursor: pointer;
@@ -133,44 +144,48 @@
           </tbody>
         </table>
 
-        {% if us_pagination.total_pages > 0 %}
-          <div class="pagination" id="cdc-pagination-container">
-            {% if us_pagination.has_previous %}
-              <button onclick="setPage('cdc', 1)">First</button>
-              <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'-1' }})">← Previous</button>
+        <div class="pagination" id="cdc-pagination-container">
+            {% if us_data.has_other_pages %} {# Check if pagination is needed #}
+                {% if us_data.has_previous %}
+                    <button onclick="setPage('cdc', 1)">First</button>
+                    <button onclick="setPage('cdc', {{ us_data.previous_page_number }})">← Previous</button>
+                {% endif %}
+
+                {% for i in us_data.paginator.page_range %}
+                    {% if us_data.number == i %}
+                        <button class="active">{{ i }}</button>
+                    {% elif i > us_data.number|add:'-5' and i < us_data.number|add:'5' %} {# Limit page numbers shown #}
+                        <button onclick="setPage('cdc', {{ i }})">{{ i }}</button>
+                    {% elif i == us_data.number|add:'-5' or i == us_data.number|add:'5' %}
+                         <button disabled>...</button> {# Ellipsis for skipped pages #}
+                    {% endif %}
+                {% endfor %}
+
+                {% if us_data.has_next %}
+                    <button onclick="setPage('cdc', {{ us_data.next_page_number }})">Next →</button>
+                    <button onclick="setPage('cdc', {{ us_data.paginator.num_pages }})">Last</button>
+                {% endif %}
             {% endif %}
-            {% for i in us_pagination_range %}
-              {% if i == us_pagination.current_page %}
-                <button class="active">{{ i }}</button>
-              {% else %}
-                <button onclick="setPage('cdc', {{ i }})">{{ i }}</button>
-              {% endif %}
-            {% endfor %}
-            {% if us_pagination.has_next %}
-              <button onclick="setPage('cdc', {{ us_pagination.current_page|add:'1' }})">Next →</button>
-              <button onclick="setPage('cdc', {{ us_pagination.total_pages }})">Last</button>
-            {% endif %}
-          </div>
-        {% endif %}
+        </div>
+        {# --- NOTE: This server-rendered block will be replaced by JS on AJAX calls --- #}
+
         {% elif cdc_task_error %}
           <div class="error">
               <p>Error fetching data for "{{ selected_state|title }}": {{ cdc_task_error }}</p>
               <p>Please try again later or select a different state.</p>
           </div>
       {% else %}
-        {# --- MODIFIED SECTION START --- #}
         <div class="info">
           <p>COVID-19 data for "{{ selected_state|title }}" is being fetched from the CDC website...</p>
           <div class="loading">
             <div class="loading-spinner"></div>
           </div>
-          <p>This may take a minute or two. The data will appear automatically when ready.</p>
-          <button type="button" onclick="showWaitInfo()">Why the wait?</button> {# <-- ADDED BUTTON #}
+          <p>This may take a moment. The data will appear automatically when ready.</p>
+          <button type="button" onclick="showWaitInfo()">Why the wait?</button>
         </div>
 
         <script>
-          // Function to display info about the wait time
-          function showWaitInfo() { // <-- ADDED FUNCTION
+          function showWaitInfo() {
             alert(
               "Fetching Data Explained:\n\n" +
               "When data isn't immediately available in our database, this system performs a live scrape of the official CDC website to get the latest information.\n\n" +
@@ -179,33 +194,29 @@
             );
           }
 
-          // Check data status every 5 seconds
           const dataCheckInterval = setInterval(function() {
-            // --- Rest of your existing polling script ---
             $.ajax({
               url: '{% url "live_data_page" %}',
               data: {
                 selected_state: "{{ selected_state }}",
-                us_page: 1
+                us_page: 1 // Always check page 1 for existence
               },
               method: 'GET',
               headers: { 'X-Requested-With': 'XMLHttpRequest' },
               success: function(response) {
-                // If data is now available, reload the page to show it
-                if (response.us_data.cdc_data_exists) {
+                if (response.us_data && response.us_data.cdc_data_exists) {
                   clearInterval(dataCheckInterval);
-                  window.location.reload();
+                  // Reload the page to show the initial data and correct pagination
+                  window.location.href = `{% url 'live_data_page' %}?selected_state={{ selected_state }}`;
                 }
               },
-              // Optional: Add error handling for the poll itself
               error: function() {
                   console.error("Polling request failed. Stopping polling.");
                   clearInterval(dataCheckInterval);
               }
             });
-          }, 5000); // Poll every 5 seconds
+          }, 5000);
         </script>
-        {# --- MODIFIED SECTION END --- #}
       {% endif %}
     </section>
 
@@ -263,25 +274,30 @@
       {% else %}
         <p class="info">WHO data is unavailable. Please try again later.</p>
       {% endif %}
-      {% if global_data and global_pagination.total_pages > 0 %}
-        <div class="pagination" id="who-pagination-container">
-          {% if global_pagination.has_previous %}
-            <button onclick="setPage('who', 1)">First</button>
-            <button onclick="setPage('who', {{ global_pagination.current_page|add:'-1' }})">← Previous</button>
-          {% endif %}
-          {% for i in global_pagination_range %}
-            {% if i == global_pagination.current_page %}
-              <button class="active">{{ i }}</button>
-            {% else %}
-              <button onclick="setPage('who', {{ i }})">{{ i }}</button>
+      <div class="pagination" id="who-pagination-container">
+            {% if global_data.has_other_pages %} {# Check if pagination is needed #}
+                {% if global_data.has_previous %}
+                    <button onclick="setPage('who', 1)">First</button>
+                    <button onclick="setPage('who', {{ global_data.previous_page_number }})">← Previous</button>
+                {% endif %}
+
+                {% for i in global_data.paginator.page_range %}
+                     {% if global_data.number == i %}
+                        <button class="active">{{ i }}</button>
+                    {% elif i > global_data.number|add:'-5' and i < global_data.number|add:'5' %} {# Limit page numbers shown #}
+                        <button onclick="setPage('who', {{ i }})">{{ i }}</button>
+                    {% elif i == global_data.number|add:'-5' or i == global_data.number|add:'5' %}
+                         <button disabled>...</button> {# Ellipsis for skipped pages #}
+                    {% endif %}
+                {% endfor %}
+
+                {% if global_data.has_next %}
+                    <button onclick="setPage('who', {{ global_data.next_page_number }})">Next →</button>
+                    <button onclick="setPage('who', {{ global_data.paginator.num_pages }})">Last</button>
+                {% endif %}
             {% endif %}
-          {% endfor %}
-          {% if global_pagination.has_next %}
-            <button onclick="setPage('who', {{ global_pagination.current_page|add:'1' }})">Next →</button>
-            <button onclick="setPage('who', {{ global_pagination.total_pages }})">Last</button>
-          {% endif %}
-        </div>
-      {% endif %}
+       </div>
+       {# --- NOTE: This server-rendered block will be replaced by JS on AJAX calls --- #}
     </section>
 
     <a class="back-link" href="{% url 'main' %}">← Return to Main Page</a>
@@ -289,122 +305,223 @@
 
   <script>
     // Global page state for each dashboard
-    let cdcCurrentPage = {{ us_pagination.current_page|default:"1" }};
-    let whoCurrentPage = {{ global_pagination.current_page|default:"1" }};
+    // Initialize from server-rendered context if available, otherwise default to 1
+    let cdcCurrentPage = {{ us_data.number|default:"1" }};
+    let whoCurrentPage = {{ global_data.number|default:"1" }};
 
-    // Function to set page and reload data via AJAX
+    // Function to set page and trigger AJAX data load
     function setPage(dataset, page) {
+      console.log(`Setting page for ${dataset} to ${page}`); // Debug
       if (dataset === 'cdc') {
         cdcCurrentPage = page;
       } else if (dataset === 'who') {
         whoCurrentPage = page;
       }
+      // No need to update global_page if only CDC changes, and vice versa
+      // The loadData function will send the correct current page for each
       loadData();
     }
 
-    // Function to load data via AJAX (Note: only updates CDC currently)
+    // --- NEW: Function to dynamically build pagination controls ---
+    function updatePaginationControls(dataset, paginationData) {
+        let containerId = '';
+        let currentPage;
+
+        if (!paginationData) {
+             console.log(`No pagination data for ${dataset}, skipping update.`);
+             return; // Exit if no data
+        }
+
+        if (dataset === 'cdc') {
+            containerId = '#cdc-pagination-container';
+            currentPage = cdcCurrentPage; // Use the JS variable
+        } else if (dataset === 'who') {
+            containerId = '#who-pagination-container';
+            currentPage = whoCurrentPage; // Use the JS variable
+        } else {
+            return; // Unknown dataset
+        }
+
+        const container = $(containerId);
+        container.empty(); // Clear existing buttons
+
+        // Only build if there are pages to show
+        if (paginationData.total_pages && paginationData.total_pages > 1) {
+            // First/Previous
+            if (paginationData.has_previous) {
+                container.append(`<button onclick="setPage('${dataset}', 1)">First</button>`);
+                // Use current page from paginationData for prev/next logic in button handler
+                container.append(`<button onclick="setPage('${dataset}', ${paginationData.current_page - 1})">← Previous</button>`);
+            } else {
+                // Optional: Add disabled buttons
+                // container.append(`<button disabled>First</button>`);
+                // container.append(`<button disabled>← Previous</button>`);
+            }
+
+            // Page Numbers (e.g., show 4 around current page)
+            const pageRangeToShow = 4;
+            let lower = Math.max(1, paginationData.current_page - pageRangeToShow);
+            let upper = Math.min(paginationData.total_pages, paginationData.current_page + pageRangeToShow);
+
+            // Add ellipsis at the beginning if needed
+             if (lower > 1) {
+                 container.append(`<button onclick="setPage('${dataset}', 1)">1</button>`);
+                 if (lower > 2) {
+                      container.append(`<button disabled>...</button>`);
+                 }
+             }
+
+            for (let i = lower; i <= upper; i++) {
+                if (i === paginationData.current_page) {
+                    container.append(`<button class="active">${i}</button>`);
+                } else {
+                    container.append(`<button onclick="setPage('${dataset}', ${i})">${i}</button>`);
+                }
+            }
+
+             // Add ellipsis at the end if needed
+             if (upper < paginationData.total_pages) {
+                  if (upper < paginationData.total_pages - 1) {
+                       container.append(`<button disabled>...</button>`);
+                  }
+                  container.append(`<button onclick="setPage('${dataset}', ${paginationData.total_pages})">${paginationData.total_pages}</button>`);
+             }
+
+
+            // Next/Last
+            if (paginationData.has_next) {
+                 // Use current page from paginationData for prev/next logic in button handler
+                container.append(`<button onclick="setPage('${dataset}', ${paginationData.current_page + 1})">Next →</button>`);
+                container.append(`<button onclick="setPage('${dataset}', ${paginationData.total_pages})">Last</button>`);
+            } else {
+                 // Optional: Add disabled buttons
+                 // container.append(`<button disabled>Next →</button>`);
+                 // container.append(`<button disabled>Last</button>`);
+            }
+        } else if (paginationData.total_pages === 1) {
+            // Optional: Display something if only one page, or leave empty
+             // container.append(`<span>Page 1 of 1</span>`);
+        }
+    }
+
+
+    // Function to load data via AJAX and update table + pagination
     function loadData() {
-      console.log(`Loading data - CDC Page: ${cdcCurrentPage}, WHO Page: ${whoCurrentPage}`); // Debug log
-      $('#cdc-data-tbody').html('<tr><td colspan="3" style="text-align:center;"><div class="loading"><div class="loading-spinner"></div></div> Fetching page data...</td></tr>'); // Show loading in table
-      // Add similar loading for WHO if implementing AJAX updates there
+      console.log(`Loading data - CDC Page: ${cdcCurrentPage}, WHO Page: ${whoCurrentPage}`);
+      // Show loading indicator in table bodies
+      $('#cdc-data-tbody').html('<tr><td colspan="3" style="text-align:center;"><div class="loading"><div class="loading-spinner"></div></div> Fetching page data...</td></tr>');
+      $('#who-data-tbody').html('<tr><td colspan="7" style="text-align:center;"><div class="loading"><div class="loading-spinner"></div></div> Fetching page data...</td></tr>');
+      // Hide pagination while loading
+      $('#cdc-pagination-container').empty();
+      $('#who-pagination-container').empty();
+
 
       $.ajax({
-        url: '{% url "live_data_page" %}',
+        url: '{% url "live_data_page" %}', // Use the main view URL
         data: {
           selected_state: $("#state").val(),
           selected_country: $("#country").val(),
           selected_region: $("#region").val(),
-          us_page: cdcCurrentPage,
-          global_page: whoCurrentPage
+          us_page: cdcCurrentPage, // Send current CDC page
+          global_page: whoCurrentPage // Send current WHO page
         },
         method: 'GET',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }, // Crucial for view to return JSON
         success: function(response) {
-          console.log("AJAX response received:", response); // Debug log
+          console.log("AJAX response received:", response);
 
           // --- UPDATE CDC SECTION ---
           const cdcSection = $('#cdc-dashboard');
+          cdcSection.find('.info').remove(); // Remove loading info block if present
+          cdcSection.find('table').show();  // Ensure table is visible
 
-          // Remove loading state if present
-          cdcSection.find('.info').remove(); // Remove the whole loading info block if data exists now
-          // Ensure table is visible if it was hidden or replaced by loading info
-          cdcSection.find('table').show();
-          cdcSection.find('#cdc-pagination-container').show();
-
-
-          // Update CDC table body
           let cdcHtml = '';
-          if (response.us_data && response.us_data.object_list.length > 0) {
+          // Check if us_data exists and has object_list
+          if (response.us_data && response.us_data.object_list && response.us_data.object_list.length > 0) {
             response.us_data.object_list.forEach(entry => {
-              // Format date string (assuming it comes as YYYY-MM-DD from backend DateField)
               let formattedDate = 'N/A';
-              if (entry.date) {
+              if (entry.date) { // Dates should be YYYY-MM-DD strings from JSON
                    try {
-                       const dateObj = new Date(entry.date + 'T00:00:00'); // Ensure correct parsing
-                       formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                   } catch (e) {
-                       console.error("Error formatting date:", entry.date, e);
-                       formattedDate = entry.date; // Fallback to raw string
-                   }
+                        // Parse YYYY-MM-DD and format for display
+                       const dateParts = entry.date.split('-');
+                       const dateObj = new Date(Date.UTC(dateParts[0], dateParts[1] - 1, dateParts[2])); // Use UTC to avoid timezone issues
+                       formattedDate = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+                   } catch (e) { console.error("Error formatting date:", entry.date, e); formattedDate = entry.date; }
               }
-              // Capitalize state
               const stateName = entry.state ? entry.state.charAt(0).toUpperCase() + entry.state.slice(1) : 'N/A';
-              // Format deaths
               const deaths = entry.deaths_total === 0 ? '0' : (entry.deaths_total || 'N/A');
-
-              cdcHtml += `
-                <tr>
-                  <td>${stateName}</td>
-                  <td>${formattedDate}</td>
-                  <td>${deaths}</td>
-                </tr>
-              `;
+              cdcHtml += `<tr><td>${stateName}</td><td>${formattedDate}</td><td>${deaths}</td></tr>`;
             });
           } else {
-            cdcHtml = '<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>';
+            // Display message if no objects returned for the current filter/page
+            cdcHtml = '<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter for this page.</td></tr>';
           }
           $('#cdc-data-tbody').html(cdcHtml);
 
-          // Update CDC Pagination (Example - needs refinement based on your needs)
-          // This requires more complex logic to rebuild the buttons based on response.us_data pagination info
-          // Simple example: just update button states based on has_next/has_previous
-          const cdcPagination = $('#cdc-pagination-container');
-          if (response.us_data) {
-              cdcPagination.find('button').prop('disabled', false); // Re-enable all
-              if (!response.us_data.has_previous) {
-                  cdcPagination.find('button:contains("First"), button:contains("Previous")').prop('disabled', true);
-              }
-              if (!response.us_data.has_next) {
-                   cdcPagination.find('button:contains("Next"), button:contains("Last")').prop('disabled', true);
-              }
-              // TODO: Update active page number button and potentially the range of numbers shown
+          // Update CDC pagination using the new function
+          updatePaginationControls('cdc', response.us_data); // Pass the us_data object which contains pagination details
+
+
+          // --- UPDATE WHO SECTION ---
+           const whoSection = $('#who-dashboard');
+           whoSection.find('table').show();
+
+          let whoHtml = '';
+          // Check if global_data exists and has object_list
+          if (response.global_data && response.global_data.object_list && response.global_data.object_list.length > 0) {
+             response.global_data.object_list.forEach(entry => {
+                  // Add formatting for WHO data if needed (e.g., dates)
+                  whoHtml += `
+                    <tr>
+                      <td>${entry.country || 'N/A'}</td>
+                      <td>${entry.region || 'N/A'}</td>
+                      <td>${entry.date || 'N/A'}</td> {# Assuming date is string YYYY-MM-DD #}
+                      <td>${entry.cases_total || '0'}</td>
+                      <td>${entry.cases_new || '0'}</td>
+                      <td>${entry.deaths_total || '0'}</td>
+                      <td>${entry.deaths_new || '0'}</td>
+                    </tr>
+                  `;
+             });
           } else {
-              cdcPagination.hide(); // Hide if no pagination data
+              whoHtml = '<tr><td colspan="7" style="text-align:center;">No WHO data matches your filter for this page.</td></tr>';
           }
+          $('#who-data-tbody').html(whoHtml);
 
-
-          // --- UPDATE WHO SECTION (Placeholder) ---
-          // Similar logic would go here to update the WHO table body and pagination
-          // based on response.global_data
-          // let whoHtml = '';
-          // ... populate whoHtml ...
-          // $('#who-data-tbody').html(whoHtml);
-          // ... update WHO pagination ...
+          // Update WHO pagination using the new function
+          updatePaginationControls('who', response.global_data); // Pass the global_data object
 
         },
         error: function(xhr, status, error) {
           console.error('AJAX error:', status, error);
-          // Display error in tables
           $('#cdc-data-tbody').html('<tr><td colspan="3" style="text-align:center;">Error updating CDC data via AJAX.</td></tr>');
           $('#who-data-tbody').html('<tr><td colspan="7" style="text-align:center;">Error updating WHO data via AJAX.</td></tr>');
+           // Clear pagination on error
+          $('#cdc-pagination-container').empty();
+          $('#who-pagination-container').empty();
         }
       });
     }
 
-    // Removed initial loadData() call if server renders initial state correctly
-    // $(document).ready(function() {
-    //  // loadData(); // Let server handle initial render
-    // });
+    // --- Initialize pagination on document ready ---
+    // We call updatePaginationControls here based on the initial data passed from Django context
+    $(document).ready(function() {
+        // Initial setup for CDC pagination based on server-rendered context
+        updatePaginationControls('cdc', {
+             current_page: {{ us_data.number|default:"1" }},
+             total_pages: {{ us_data.paginator.num_pages|default:"1" }},
+             has_previous: {% if us_data.has_previous %}true{% else %}false{% endif %},
+             has_next: {% if us_data.has_next %}true{% else %}false{% endif %}
+        });
+
+        // Initial setup for WHO pagination based on server-rendered context
+         updatePaginationControls('who', {
+             current_page: {{ global_data.number|default:"1" }},
+             total_pages: {{ global_data.paginator.num_pages|default:"1" }},
+             has_previous: {% if global_data.has_previous %}true{% else %}false{% endif %},
+             has_next: {% if global_data.has_next %}true{% else %}false{% endif %}
+        });
+    });
   </script>
 
 </body>
