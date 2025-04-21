@@ -42,13 +42,13 @@ class CovidUSData(models.Model):
 
 class CDCData(models.Model):
     state = models.CharField(max_length=100)  # For Geography (e.g., "United States" or a state like "California")
-    date = models.CharField(max_length=20)  # For Date (e.g., "Apr  5 2025")
+    date = models.DateField()
     deaths_total = models.IntegerField(default=0)  # For Cumulative Deaths
-    data_as_of = models.CharField(max_length=20)  # For Death Data As Of (e.g., "Apr 10 2025")
+    data_as_of = models.DateField(null=True, blank=True) 
 
     class Meta:
         unique_together = ('state', 'date')  # Prevent duplicates
         ordering = ['-date']  # Latest dates first
 
     def __str__(self):
-        return f"{self.state} - {self.date}"
+        return f"{self.state} - {self.date.strftime('%Y-%m-%d') if self.date else 'No Date'}"

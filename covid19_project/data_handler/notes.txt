@@ -1,25 +1,19 @@
 A multi-step process to fixing a big road bump.
-
-1.  **Initial Problem:** The dashboard was stuck showing the "fetching data..." message for the CDC section[cite: 1], even though you confirmed the Selenium task was downloading the correct CSV file[cite: 2, 3]. The view function consistently found 0 results in the database.
-
-2.  **Issue 1: Celery Worker Not Running/Monitored**
-    * **Problem:** We initially weren't seeing logs from the background task (`fetch_cdc_data`), making it hard to know if it was running or failing.
-    * **Fix:** You learned to run the Celery worker process in a separate terminal (`celery -A covid19_project worker ...`) from the correct directory (the one containing `manage.py`) and monitor its specific output.
-
-3.  **Issue 2: Task Flood Overwhelming Worker**
-    * **Problem:** Once the worker was running, it was immediately getting bombarded with dozens of `fetch_cdc_data` tasks. This happened because the view function was queueing a new task on *every* page load (including the 5-second AJAX polls) as long as data was missing. Since tasks were failing (due to the next issue), data was always missing, creating a loop.
-    * **Fix:**
-        * We modified the `live_dashboard` view function to only call `fetch_cdc_data.delay()` if data was missing **AND** it was *not* an AJAX request (checking `request.headers.get('x-requested-with')`).
-        * We ensured the Django server (`runserver`) was restarted after saving this change.
-        * We cleared the backlog of old tasks from the Redis queue using `redis-cli FLUSHDB`.
-
-4.  **Issue 3: Database Schema Mismatch**
-    * **Problem:** The worker logs revealed the core blocking error: `(1364, "Field 'deaths_new' doesn't have a default value")`. This meant the database table had an extra `deaths_new` column that your Django `CDCData` model didn't define, and the database required a value for it, preventing data saving.
-    * **Fix:** Since the source CSV data [cite: 2, 3] confirmed `deaths_new` wasn't needed, we used Django migrations (`python manage.py makemigrations data_handler` followed by `python manage.py migrate`) to alter the database table structure to correctly match your existing `CDCData` model definition (which rightly excluded `deaths_new`).
-
-5.  **Issue 4: Task Reporting False Success**
-    * **Problem:** Tasks were reporting "succeeded" even when the database error occurred.
-    * **Cause:** The broad `try...except Exception:` block in the task caught the database error but didn't stop the task from finishing, misleading Celery.
-    * **Fix (Implicit):** Fixing the underlying database error (Issue 3) allowed the task to complete its data processing fully, leading to a *true* success state.
-
-By addressing the worker visibility, stopping the task flood, and fixing the critical database mismatch, the `fetch_cdc_data` task could finally run successfully, download the data[cite: 2, 3], save it to the database, and allow the dashboard page [cite: 1] to display it.
+Initial Problem: The dashboard was stuck showing the "fetching data..." message for the CDC section [cite: 1], even though you confirmed the Selenium task was downloading the correct CSV file [cite: 2, 3]. The view function consistently found 0 results in the database.
+Issue 1: Celery Worker Not Running/Monitored
+Problem: We initially weren't seeing logs from the background task (fetch_cdc_data), making it hard to know if it was running or failing.
+Fix: You learned to run the Celery worker process in a separate terminal (celery -A covid19_project worker --loglevel=info -c 1) from the correct directory (the one containing manage.py) and monitor its specific output.
+Issue 2: Task Flood Overwhelming Worker
+Problem: Once the worker was running, it was immediately getting bombarded with dozens of fetch_cdc_data tasks. This happened because the view function was queueing a new task on every page load (including the 5-second AJAX polls) as long as data was missing. Since tasks were failing (due to the next issue), data was always missing, creating a loop.
+Fix:
+We modified the live_dashboard view function to only call fetch_cdc_data.delay() if data was missing and it was not an AJAX request (checking request.headers.get('x-requested-with')).
+We ensured the Django server (runserver) was restarted after saving this change.
+We cleared the backlog of old tasks from the Redis queue using redis-cli FLUSHDB.
+Issue 3: Database Schema Mismatch
+Problem: The worker logs revealed the core blocking error: (1364, "Field 'deaths_new' doesn't have a default value"). This meant the database table had an extra deaths_new column that your Django CDCData model didn't define, and the database required a value for it, preventing data saving.
+Fix: Since the source CSV data [cite: 2, 3] confirmed deaths_new wasn't needed, we used Django migrations (python manage.py makemigrations data_handler followed by python manage.py migrate) to alter the database table structure to correctly match your existing CDCData model definition (which rightly excluded deaths_new).
+Issue 4: Task Reporting False Success
+Problem: Tasks were reporting "succeeded" even when the database error occurred.
+Cause: The broad try...except Exception: block in the task caught the database error but didn't stop the task from finishing, misleading Celery.
+Fix (Implicit): Fixing the underlying database error (Issue 3) allowed the task to complete its data processing fully, leading to a true success state.
+By addressing the worker visibility, stopping the task flood, and fixing the critical database mismatch, the fetch_cdc_data task could finally run successfully, download the data [cite: 2, 3], save it to the database, and allow the dashboard page [cite: 1] to display it.
