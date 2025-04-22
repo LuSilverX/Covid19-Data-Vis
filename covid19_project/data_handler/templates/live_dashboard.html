@@ -188,9 +188,9 @@
           function showWaitInfo() {
             alert(
               "Fetching Data Explained:\n\n" +
-              "When data isn't immediately available in our database, this system performs a live scrape of the official CDC website to get the latest information.\n\n" +
+              "When data isn't immediately available in our database, this system performs a live scrape of the official CDC website to get the latest information upon request.\n\n" +
               "This automated browser process can take a minute or two to complete.\n\n" +
-              "Also note: The CDC typically updates this specific dataset weekly, so frequent fetches may not always yield new data."
+              "Also note: The CDC typically updates this specific dataset weekly at best. This system automatically scrapes new data sundays at 7:00 AM UTC), so frequent fetches may not always yield new data."
             );
           }
 

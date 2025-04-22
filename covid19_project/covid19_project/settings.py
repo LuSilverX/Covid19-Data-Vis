@@ -13,12 +13,17 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from pathlib import Path
 import os
 import logging
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data'
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_TIMEZONE = 'UTC'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -121,7 +126,17 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
 ]
-
+CELERY_BEAT_SCHEDULE = {
+    'fetch-cdc-data-weekly': {
+        'task': 'data_handler.tasks.fetch_cdc_data',
+        'schedule': crontab(hour=0, minute=0, day_of_week='monday'),
+        # Task will need a 'selected_state'. So made a way to tell it to update ALL states.
+        # Passing special value 'all_states'.
+        # Modified the task slightly to handle this.
+        'args': ('all_states', ''), # Passing 'all_states' and an empty string for selected_date
+    },
+    # You could add more scheduled tasks here later if needed
+}
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
