@@ -17,3 +17,5 @@ Problem: Tasks were reporting "succeeded" even when the database error occurred.
 Cause: The broad try...except Exception: block in the task caught the database error but didn't stop the task from finishing, misleading Celery.
 Fix (Implicit): Fixing the underlying database error (Issue 3) allowed the task to complete its data processing fully, leading to a true success state.
 By addressing the worker visibility, stopping the task flood, and fixing the critical database mismatch, the fetch_cdc_data task could finally run successfully, download the data [cite: 2, 3], save it to the database, and allow the dashboard page [cite: 1] to display it.
+celery -A covid19_project beat -l info
+celery -A covid19_project worker --loglevel=info -c 1

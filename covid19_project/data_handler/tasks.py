@@ -1,23 +1,26 @@
+# data_handler/tasks.py
+
 import os
 import time
 import csv
 import logging
 from io import StringIO
 from datetime import datetime
+import requests # Needed for WHO task
 from celery import shared_task
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from .models import CDCData
+# Import both models
+from .models import CDCData, WHOData
 
 logger = logging.getLogger(__name__)
 
-# --- Helper function to run the scrape logic for a single state ---
-# This makes the main task cleaner, especially with the loop
+# --- Helper function for CDC scrape logic ---
 def _scrape_and_save_state_data(state_key_to_process, state_codes):
-    """Handles Selenium navigation, download, parsing, and saving for ONE state."""
+    """Handles Selenium navigation, download, parsing, and saving for ONE CDC state."""
     if state_key_to_process not in state_codes:
         logger.error(f"Invalid state key '{state_key_to_process}' passed to _scrape_and_save_state_data.")
         return False # Indicate failure
@@ -25,11 +28,12 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     state_code = state_codes[state_key_to_process]
     url = f"https://covid.cdc.gov/COVID-DATA-TRACKER/#trends_totaldeaths_select_{state_code}"
     state_name = state_key_to_process.replace("united states", "United States").title()
-    logger.info(f"--- Processing state: {state_key_to_process} ---")
+    logger.info(f"--- Processing CDC state: {state_key_to_process} ---")
 
     # Set up download directory (consider making path absolute/configurable)
+    # Using os.getcwd() which might be the project root or app root depending on execution context
     download_dir = os.path.join(os.getcwd(), "cdc_downloads")
-    logger.warning(f"Download directory: {download_dir}")
+    logger.warning(f"CDC Download directory: {download_dir}")
     os.makedirs(download_dir, exist_ok=True)
 
     options = Options()
@@ -44,7 +48,6 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     }
     options.add_experimental_option("prefs", prefs)
 
-    # Instantiate WebDriver INSIDE the function/loop for better isolation
     driver = webdriver.Chrome(options=options)
     csv_file_path = None
     success = False # Flag to track if processing succeeded for this state
@@ -92,6 +95,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         download_button = None
         # (Simplified download button finding - adjust if needed)
         try:
+             # Try the ID that worked before first
              download_button = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.ID, "btnUSTrendsTableExport")))
              logger.info("Found 'Download Data' button by ID 'btnUSTrendsTableExport'.")
         except Exception as e:
@@ -120,9 +124,8 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         csv_files = [os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.endswith('.csv')]
         if not csv_files:
             logger.error(f"No CSV file found for {state_key_to_process} in {download_dir}")
-            # Save screenshot for debugging no-download scenarios
             try:
-                screenshot_path = os.path.join(download_dir, f'error_screenshot_{state_key_to_process}.png')
+                screenshot_path = os.path.join(download_dir, f'error_screenshot_cdc_{state_key_to_process}.png')
                 driver.save_screenshot(screenshot_path)
                 logger.info(f"Saved screenshot to {screenshot_path}")
             except Exception as screen_e:
@@ -130,21 +133,21 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
             return False # Indicate failure
 
         csv_file_path = max(csv_files, key=os.path.getctime)
-        logger.info(f"Most recent CSV found: {os.path.basename(csv_file_path)}")
+        logger.info(f"Most recent CDC CSV found: {os.path.basename(csv_file_path)}")
 
         # --- CSV Parsing and Saving ---
         try:
             with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
                 csv_text = f.read()
         except Exception as read_e:
-             logger.error(f"Error reading CSV file {csv_file_path}: {read_e}")
+             logger.error(f"Error reading CDC CSV file {csv_file_path}: {read_e}")
              return False
 
         sample_lines = csv_text.strip().split('\n')[:5]
-        logger.info(f"Sample CSV data: {sample_lines}")
+        logger.info(f"Sample CDC CSV data: {sample_lines}")
         csv_lines = csv_text.strip().split('\n')
         if len(csv_lines) < 4:
-            logger.error(f"CSV file '{os.path.basename(csv_file_path)}' doesn't have enough lines.")
+            logger.error(f"CDC CSV file '{os.path.basename(csv_file_path)}' doesn't have enough lines.")
             return False
 
         csv_file = StringIO('\n'.join(csv_lines[2:]))
@@ -153,18 +156,19 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         # Delete existing data for this state *before* processing rows
         logger.info(f"Clearing existing CDCData for state: {state_key_to_process}")
         count, _ = CDCData.objects.filter(state__iexact=state_key_to_process).delete()
-        logger.info(f"Deleted {count} existing records for {state_key_to_process}")
+        logger.info(f"Deleted {count} existing CDC records for {state_key_to_process}")
 
         rows_processed = 0
         rows_skipped = 0
-        date_formats = ["%b %d %Y", "%b %e %Y"]
+        date_formats = ["%b %d %Y", "%b %e %Y"] # Expected formats like "Apr 12 2025" or "Apr  5 2025"
 
-        for row in reader:
+        for row_num, row in enumerate(reader):
             state_geo = row.get('Geography', '').lower()
-            if state_geo != state_key_to_process: # Ensure row matches the state being processed
-                logger.warning(f"Skipping row: Geo '{state_geo}' != Expected '{state_key_to_process}'")
-                rows_skipped += 1
-                continue
+            # Ensure the row matches the state we are processing
+            if state_geo != state_key_to_process:
+                 logger.warning(f"CDC Skipping row: Geo '{state_geo}' != Expected '{state_key_to_process}' in file {csv_file_path}")
+                 rows_skipped += 1
+                 continue
 
             date_str = row.get('Date', '').strip()
             data_as_of_str = row.get('Death Data As Of', '').strip()
@@ -178,7 +182,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                         break
                     except ValueError: continue
                 if not parsed_date:
-                    logger.warning(f"Date parse fail: '{date_str}' for {state_geo}. Skipping.")
+                    logger.warning(f"CDC Date parse fail: '{date_str}' for {state_geo}. Skipping.")
                     rows_skipped += 1
                     continue
 
@@ -190,7 +194,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                          break
                      except ValueError: continue
                  if not parsed_data_as_of:
-                      logger.warning(f"DataAsOf parse fail: '{data_as_of_str}' for {state_geo} on {date_str}. Saving None.")
+                      logger.warning(f"CDC DataAsOf parse fail: '{data_as_of_str}' for {state_geo} on {date_str}. Saving None.")
 
             deaths_total = 0
             if deaths_value == "Counts 1-9" or not deaths_value.strip():
@@ -200,7 +204,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                     deaths_total = int(deaths_value.replace(',', ''))
                 except ValueError:
                     deaths_total = 0
-                    logger.warning(f"Deaths parse fail: '{deaths_value}' for {state_geo} on {date_str}")
+                    logger.warning(f"CDC Deaths parse fail: '{deaths_value}' for {state_geo} on {date_str}")
 
             if parsed_date:
                 try:
@@ -214,32 +218,33 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                     )
                     rows_processed += 1
                 except Exception as db_exc:
-                     logger.error(f"DB error saving row {state_geo} on {parsed_date}: {db_exc}")
+                     logger.error(f"CDC DB error saving row {state_geo} on {parsed_date}: {db_exc}")
                      rows_skipped += 1
 
-        logger.info(f"Data processing for {state_key_to_process}: {rows_processed} rows processed, {rows_skipped} rows skipped.")
+        logger.info(f"CDC data processing for {state_key_to_process}: {rows_processed} rows processed, {rows_skipped} rows skipped.")
         success = True # Mark as successful for this state
 
     except Exception as e:
-        logger.exception(f"Unexpected error during scraping/processing for state {state_key_to_process}: {e}")
+        logger.exception(f"Unexpected error during CDC scraping/processing for state {state_key_to_process}: {e}")
         success = False # Mark as failed
     finally:
-        logger.info(f"Quitting WebDriver for state: {state_key_to_process}...")
+        logger.info(f"Quitting CDC WebDriver for state: {state_key_to_process}...")
         driver.quit()
         if csv_file_path and os.path.exists(csv_file_path):
             try:
                 os.remove(csv_file_path)
-                logger.info(f"Removed CSV: {os.path.basename(csv_file_path)}")
+                logger.info(f"Removed CDC CSV: {os.path.basename(csv_file_path)}")
             except Exception as rm_exc:
-                 logger.error(f"Error removing CSV {csv_file_path}: {rm_exc}")
-        logger.info(f"--- Finished processing state: {state_key_to_process} (Success: {success}) ---")
+                 logger.error(f"Error removing CDC CSV {csv_file_path}: {rm_exc}")
+        logger.info(f"--- Finished processing CDC state: {state_key_to_process} (Success: {success}) ---")
 
     return success # Return status for this state
 
-# --- Main Celery Task ---
-@shared_task(bind=True) # Added bind=True for potential future use (e.g., retries)
-def fetch_cdc_data(self, selected_state, selected_date): # Added self because of bind=True
-    task_id = self.request.id # Get task ID for logging
+
+# --- Main CDC Task ---
+@shared_task(bind=True)
+def fetch_cdc_data(self, selected_state, selected_date):
+    task_id = self.request.id
     logger.error(f"!!!!!!!!!! fetch_cdc_data TASK STARTED (ID: {task_id}) for state: {selected_state} !!!!!!!!!!!")
 
     state_codes = {
@@ -260,46 +265,169 @@ def fetch_cdc_data(self, selected_state, selected_date): # Added self because of
 
     states_to_process = []
     if selected_state.lower() == 'all_states':
-        # Get all state keys (excluding 'united states' for this example, add it back if needed)
-        states_to_process = [state for state in state_codes.keys() if state != 'united states']
-        logger.info(f"Task ID {task_id}: Scheduled run for ALL {len(states_to_process)} states.")
+        # Get all state keys (including 'united states' for this example)
+        states_to_process = list(state_codes.keys())
+        logger.info(f"Task ID {task_id}: Scheduled CDC run for ALL {len(states_to_process)} states.")
     elif selected_state.lower() in state_codes:
         states_to_process = [selected_state.lower()]
-        logger.info(f"Task ID {task_id}: Triggered for single state: {selected_state}")
+        logger.info(f"Task ID {task_id}: CDC Triggered for single state: {selected_state}")
     else:
-        logger.error(f"Task ID {task_id}: Invalid selected_state received: {selected_state}. Exiting.")
-        return # Exit if state is invalid
+        logger.error(f"Task ID {task_id}: Invalid selected_state for CDC: {selected_state}. Exiting.")
+        return
 
     overall_success = True
     states_succeeded = 0
     states_failed = 0
 
     for current_state in states_to_process:
-        # Call the helper function for each state
-        # Using .s().apply_async() could distribute states to multiple workers if available,
-        # but for simplicity here, we run sequentially within this task.
-        # If one state fails, we log it but continue to the next.
         try:
+            # Call the helper function for each state
             state_success = _scrape_and_save_state_data(current_state, state_codes)
             if state_success:
                  states_succeeded += 1
             else:
                  states_failed += 1
-                 overall_success = False # Mark overall task as failed if any state fails
+                 overall_success = False
         except Exception as loop_exc:
-             logger.exception(f"Task ID {task_id}: Unexpected error in loop for state {current_state}: {loop_exc}")
+             logger.exception(f"Task ID {task_id}: Unhandled error in CDC loop for state {current_state}: {loop_exc}")
              states_failed += 1
              overall_success = False
 
-        # Optional delay between states
+        # Optional delay between states if running 'all_states'
         if len(states_to_process) > 1:
-            logger.info(f"Task ID {task_id}: Pausing for 5 seconds before next state...")
+            logger.info(f"Task ID {task_id}: Pausing 5 seconds before next CDC state...")
             time.sleep(5)
 
-    logger.info(f"Task ID {task_id}: Finished processing. Succeeded: {states_succeeded}, Failed: {states_failed}.")
+    logger.info(f"Task ID {task_id}: Finished CDC processing. Succeeded: {states_succeeded}, Failed: {states_failed}.")
 
     if not overall_success:
-        raise Exception(f"Task {task_id} failed to process {states_failed} states.")
-      # pass 
+         # raise Exception(f"Task {task_id} failed to process {states_failed} CDC states.")
+         pass
 
-    # Main task function implicitly returns None
+
+# --- NEW TASK for WHO Data ---
+@shared_task(bind=True)
+def fetch_who_data(self):
+    """
+    Fetches the WHO global data CSV, parses it, and saves it to the WHOData model.
+    Deletes old data before importing.
+    """
+    task_id = self.request.id
+    logger.info(f"!!!!!!!!!! fetch_who_data TASK STARTED (ID: {task_id}) !!!!!!!!!!!")
+
+    who_csv_url = "https://srhdpeuwpubsa.blob.core.windows.net/whdh/COVID/WHO-COVID-19-global-data.csv"
+    rows_processed = 0
+    rows_skipped = 0
+    success = False
+
+    try:
+        # 1. Fetch the CSV data
+        logger.info(f"Task {task_id}: Fetching WHO data from {who_csv_url}")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(who_csv_url, headers=headers, timeout=30) # Longer timeout
+        response.raise_for_status() # Check for HTTP errors
+        csv_text = response.text
+        logger.info(f"Task {task_id}: Fetched {len(csv_text)} characters. Status: {response.status_code}")
+
+        # 2. Prepare CSV Reader
+        csv_file = StringIO(csv_text)
+        # Check header - adjust expected headers if needed
+        first_line = csv_file.readline()
+        if 'Date_reported' not in first_line or 'Country' not in first_line or 'WHO_region' not in first_line:
+             logger.error(f"Task {task_id}: WHO CSV headers missing/changed in first line: {first_line[:150]}")
+             raise ValueError("WHO CSV Header mismatch")
+        csv_file.seek(0) # Reset position for DictReader
+        reader = csv.DictReader(csv_file)
+        if not reader.fieldnames:
+             raise ValueError("Could not read WHO CSV header fieldnames")
+
+        # 3. Clear existing WHO data from the database
+        logger.info(f"Task {task_id}: Deleting existing WHOData records...")
+        count, _ = WHOData.objects.all().delete()
+        logger.info(f"Task {task_id}: Deleted {count} existing WHOData records.")
+
+        # 4. Loop through CSV rows and save to model
+        logger.info(f"Task {task_id}: Processing and saving new WHO data...")
+        # Using individual create calls for simplicity, consider bulk_create for performance on very large datasets
+        # if performance becomes an issue later.
+
+        for row_num, row in enumerate(reader):
+            try:
+                # Extract and clean data
+                date_str = row.get('Date_reported', '').strip()
+                country_code = row.get('Country_code', '').strip()
+                country = row.get('Country', '').strip()
+                who_region = row.get('WHO_region', '').strip()
+
+                # Skip rows without essential data like date or country
+                if not date_str or not country:
+                    logger.warning(f"Task {task_id}: Skipping WHO row {row_num+2} due to missing date or country.")
+                    rows_skipped += 1
+                    continue
+
+                # Parse date (YYYY-MM-DD)
+                try:
+                    parsed_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                except ValueError:
+                    logger.warning(f"Task {task_id}: Invalid WHO date format '{date_str}' in row {row_num+2}. Skipping.")
+                    rows_skipped += 1
+                    continue
+
+                # Parse integers, default to 0 if error or empty
+                new_cases = 0
+                try: new_cases = int(row.get('New_cases') or 0)
+                except (ValueError, TypeError): pass # Handle potential None or non-int
+
+                cumulative_cases = 0
+                try: cumulative_cases = int(row.get('Cumulative_cases') or 0)
+                except (ValueError, TypeError): pass
+
+                new_deaths = 0
+                try: new_deaths = int(row.get('New_deaths') or 0)
+                except (ValueError, TypeError): pass
+
+                cumulative_deaths = 0
+                try: cumulative_deaths = int(row.get('Cumulative_deaths') or 0)
+                except (ValueError, TypeError): pass
+
+                # Create WHOData object (using create since we deleted all)
+                WHOData.objects.create(
+                    date_reported=parsed_date,
+                    country_code=country_code,
+                    country=country,
+                    who_region=who_region,
+                    new_cases=new_cases,
+                    cumulative_cases=cumulative_cases,
+                    new_deaths=new_deaths,
+                    cumulative_deaths=cumulative_deaths
+                )
+                rows_processed += 1
+
+                # Optional: Log progress periodically
+                if rows_processed % 20000 == 0: # Log every 20k rows
+                    logger.info(f"Task {task_id}: Processed {rows_processed} WHO rows...")
+
+            except Exception as row_exc:
+                # Log error for specific row but continue processing others
+                logger.error(f"Task {task_id}: Error processing WHO CSV row {row_num+2}: {row_exc} - Data: {row}")
+                rows_skipped += 1
+
+        logger.info(f"Task {task_id}: Finished processing WHO data. Saved: {rows_processed}, Skipped: {rows_skipped}.")
+        success = True
+
+    except requests.exceptions.RequestException as req_e:
+        logger.error(f"Task {task_id}: Network error fetching WHO data: {req_e}")
+    except ValueError as val_e:
+        logger.error(f"Task {task_id}: CSV format/parsing error for WHO data: {val_e}")
+    except Exception as e:
+        # Log other unexpected errors
+        logger.exception(f"Task {task_id}: Unexpected error in fetch_who_data: {e}")
+
+    if not success:
+        raise Exception(f"Task {task_id} failed to fetch or process WHO data.")
+        #pass
+
+    logger.info(f"!!!!!!!!!! fetch_who_data TASK FINISHED (ID: {task_id}) !!!!!!!!!!!")
+

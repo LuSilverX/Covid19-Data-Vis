@@ -129,7 +129,7 @@ AUTH_PASSWORD_VALIDATORS = [
 CELERY_BEAT_SCHEDULE = {
     'fetch-cdc-data-weekly': {
         'task': 'data_handler.tasks.fetch_cdc_data',
-        'schedule': crontab(hour=0, minute=0, day_of_week='monday'),
+        'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),
         # Task will need a 'selected_state'. So made a way to tell it to update ALL states.
         # Passing special value 'all_states'.
         # Modified the task slightly to handle this.

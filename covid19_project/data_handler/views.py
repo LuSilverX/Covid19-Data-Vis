@@ -4,9 +4,10 @@ from io import StringIO
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.core.paginator import Paginator
-from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData
+from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData, WHOData
 import logging
-from .tasks import fetch_cdc_data  # Import the task
+from django.core.cache import cache
+from .tasks import fetch_cdc_data, fetch_who_data
 
 logger = logging.getLogger(__name__)
 
@@ -96,168 +97,161 @@ def early_dashboard(request):
 
 def live_dashboard(request):
     """
-    Fetches and displays CDC and WHO COVID-19 data.
-    For CDC data, only state filtering is allowed (default is United States).
-    WHO data filtering remains separate.
+    Fetches and displays CDC (from DB) and WHO (from DB) COVID-19 data.
+    Handles filtering and AJAX pagination updates for each dataset independently.
+    Triggers background tasks if data is missing on initial load.
     """
-    logger.info("Entering live_data_page view")
-    
-    # Default selected_state to 'united states' if not provided.
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    logger.info(f"Entering live_data_page view. AJAX: {is_ajax}")
+
+    # --- Parameters ---
     selected_state = request.GET.get('selected_state', 'united states').lower()
-    
-    # Remove date filtering for CDC data (selected_date not used for CDC)
-    # WHO filters remain unchanged.
-    selected_country = request.GET.get('selected_country', '')
+    selected_country = request.GET.get('selected_country', '') # Keep original case for display
     selected_region = request.GET.get('selected_region', '')
+    us_page_num = request.GET.get('us_page', 1)
+    global_page_num = request.GET.get('global_page', 1)
+    ajax_target = request.GET.get('target') if is_ajax else None
 
-    # Retrieve CDC data from the database, filtered only by state.
-    us_data = CDCData.objects.all()
-    if selected_state:
-        us_data = us_data.filter(state__iexact=selected_state)
-        
-    # Check if CDC data exists for the selected state
-    cdc_data_exists = us_data.exists()
-    
-    # Log the query results
-    logger.info(f"Query for {selected_state} returned {us_data.count()} results")
-    
-
-    # Trigger the Celery task ONLY on initial page load if data doesn't exist
-    # AND NOT during an AJAX poll.
-    if selected_state and not cdc_data_exists and not request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        logger.info(f"Queueing fetch_cdc_data task for {selected_state} as data doesn't exist and it's not an AJAX request.")
-        fetch_cdc_data.delay(selected_state, '')
-    elif not cdc_data_exists and request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        logger.info(f"AJAX poll for {selected_state}: Data still not found.")
-    
-    # Check for errors
-    from django.core.cache import cache  # Make sure to import cache
+    # --- Initialize Data Structures ---
+    us_data_page_obj = None
+    global_data_page_obj = None
+    who_country_list = []
+    cdc_data_exists = False
+    who_data_exists = False # Flag to check if WHO data exists at all
     cdc_task_error = None
-    if not cdc_data_exists:
-        # Check if task has previously failed
-        cache_key = f"cdc_task_error_{selected_state}"
-        cdc_task_error = cache.get(cache_key)
-    
-    # Convert to list after checking existence
-    us_data = list(us_data.values('state', 'date', 'deaths_total'))
-    
-    # ----------------------
-    # Global Data (WHO CSV)
-    # ----------------------
-    global_csv_url = "https://covid19.who.int/WHO-COVID-19-global-data.csv"
-    try:
-        headers = {
-            'User-Agent': (
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-                'AppleWebKit/537.36 (KHTML, like Gecko) '
-                'Chrome/90.0.4430.93 Safari/537.36'
-            )
-        }
-        csv_response = requests.get(global_csv_url, headers=headers, timeout=10)
-        csv_response.raise_for_status()
-        csv_text = csv_response.text
+    context = {} # Initialize context dictionary
 
-        logger.info(f"Fetched WHO CSV: {len(csv_text)} characters")
-        logger.debug(f"CSV content (first 100 chars): {csv_text[:100]}")
-        logger.debug(f"WHO CSV Content-Type: {csv_response.headers.get('Content-Type')}")
-        logger.debug(f"Final URL after redirects: {csv_response.url}")
-        logger.debug(f"WHO CSV first 300 chars: {csv_text[:300]}")
+    # --- CDC Data Processing (from DB) ---
+    if not ajax_target or ajax_target == 'cdc':
+        logger.info(f"Processing CDC data for state: {selected_state}")
+        # QuerySet is ordered by Meta class: ordering = ['-date', 'state']
+        us_queryset = CDCData.objects.filter(state__iexact=selected_state)
 
-        csv_file = StringIO(csv_text)
-        reader = csv.DictReader(csv_file)
-        logger.debug(f"CSV header fields: {reader.fieldnames}")
+        cdc_data_exists = us_queryset.exists()
+        logger.info(f"CDC Query for {selected_state} returned count: {us_queryset.count()}. Exists: {cdc_data_exists}")
 
-        global_data_raw = list(reader)
-        logger.info(f"Parsed {len(global_data_raw)} rows from WHO CSV")
-    except requests.RequestException as e:
-        logger.error(f"Failed to fetch WHO CSV data: {e}")
-        global_data_raw = []
+        if not cdc_data_exists:
+            cache_key = f"cdc_task_error_{selected_state}"
+            cdc_task_error = cache.get(cache_key)
+            logger.info(f"Checked cache for CDC task error ({cache_key}): {cdc_task_error}")
+            # Trigger task ONLY on initial load if data doesn't exist
+            if selected_state and not is_ajax:
+                logger.info(f"Queueing fetch_cdc_data task for {selected_state} (initial load, data missing).")
+                fetch_cdc_data.delay(selected_state, '')
+        elif is_ajax and ajax_target == 'cdc':
+             logger.info(f"AJAX poll for CDC {selected_state}: Data exists.")
 
-    global_data = []
-    # Normalize filter values for comparison.
-    selected_country_norm = selected_country.strip().lower() if selected_country else ''
-    selected_region_norm = selected_region.strip().lower() if selected_region else ''
 
-    for row in global_data_raw:
-        # Normalize CSV country/region values.
-        country = row.get('Country', '').strip().lower()
-        region = row.get('WHO_region', '').strip().lower() if row.get('WHO_region') else ''
-
-        # Instead of exact equality, use substring matching.
-        if selected_country_norm and selected_country_norm not in country:
-            continue
-        if selected_region_norm and selected_region_norm not in region:
-            continue
-
+        # Paginate the CDC QuerySet
+        cdc_paginator = Paginator(us_queryset, 10) # 10 items per page
         try:
-            global_data.append({
-                'date': row.get('Date_reported', '').strip(),
-                'country': row.get('Country', '').strip(),
-                'region': row.get('WHO_region', '').strip(),
-                'cases_new': int(row.get('New_cases', 0)),
-                'cases_total': int(row.get('Cumulative_cases', 0)),
-                'deaths_new': int(row.get('New_deaths', 0)),
-                'deaths_total': int(row.get('Cumulative_deaths', 0)),
-                'recovered_new': 0,
-                'recovered_total': 0,
-            })
-        except ValueError as ve:
-            logger.error(f"Data conversion error for row {row}: {ve}")
+            us_data_page_obj = cdc_paginator.page(us_page_num)
+        except PageNotAnInteger:
+            us_data_page_obj = cdc_paginator.page(1)
+        except EmptyPage:
+            us_data_page_obj = cdc_paginator.page(cdc_paginator.num_pages)
+        logger.info(f"CDC Pagination: Page {us_data_page_obj.number} of {cdc_paginator.num_pages}")
 
-    logger.info(f"Final global_data has {len(global_data)} entries")
-    
-    # Pagination (this was missing in your version)
-    entries_per_page = 10
-    us_paginator = Paginator(us_data, entries_per_page)
-    us_page = request.GET.get('us_page', 1)
-    us_page_obj = us_paginator.get_page(us_page)
 
-    global_paginator = Paginator(global_data, entries_per_page)
-    global_page = request.GET.get('global_page', 1)
-    global_page_obj = global_paginator.get_page(global_page)
+    # --- WHO Data Processing (from DB) ---
+    if not ajax_target or ajax_target == 'who':
+        logger.info(f"Processing WHO data from DB for country: '{selected_country}', region: '{selected_region}'")
+        # QuerySet is ordered by Meta class: ordering = ['-date_reported', 'country']
+        who_queryset = WHOData.objects.all()
 
-    context = {
-        'selected_state': selected_state,
-        'selected_country': selected_country,
-        'selected_region': selected_region,
-        'us_data': us_page_obj,
-        'global_data': global_page_obj,
-        'cdc_data_exists': cdc_data_exists,
-        'cdc_task_error': cdc_task_error,
-        'us_pagination': {
-            'has_next': us_page_obj.has_next(),
-            'has_previous': us_page_obj.has_previous(),
-            'current_page': us_page_obj.number,
-            'total_pages': us_paginator.num_pages,
-        },
-        'global_pagination': {
-            'has_next': global_page_obj.has_next(),
-            'has_previous': global_page_obj.has_previous(),
-            'current_page': global_page_obj.number,
-            'total_pages': global_paginator.num_pages,
-        },
-        'us_pagination_range': us_paginator.page_range,
-        'global_pagination_range': global_paginator.page_range,
-    }
+        # Check if *any* WHO data exists (only need to do this once)
+        # We do this before filtering to know if the table is populated at all
+        if not is_ajax: # Only check on initial load
+             who_data_exists = who_queryset.exists()
+             if not who_data_exists:
+                  logger.warning("WHOData table appears empty. Queueing initial fetch_who_data task.")
+                  fetch_who_data.delay() # Trigger initial WHO data fetch if table is empty
+             else:
+                  logger.info("WHOData table has data.")
 
-    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-        response_data = {
-            'us_data': {
-                'object_list': list(us_page_obj),
-                'has_next': us_page_obj.has_next(),
-                'has_previous': us_page_obj.has_previous(),
-                'current_page': us_page_obj.number,
-                'total_pages': us_paginator.num_pages,
-                'cdc_data_exists': cdc_data_exists,
-            },
-            'global_data': {
-                'object_list': list(global_page_obj),
-                'has_next': global_page_obj.has_next(),
-                'has_previous': global_page_obj.has_previous(),
-                'current_page': global_page_obj.number,
-                'total_pages': global_paginator.num_pages,
-            },
-        }
+        # Apply filters
+        if selected_country:
+             # Use exact, case-insensitive match
+             who_queryset = who_queryset.filter(country__iexact=selected_country)
+        if selected_region:
+             # Use case-insensitive contains
+             who_queryset = who_queryset.filter(who_region__icontains=selected_region)
+
+        # Paginate the WHO QuerySet
+        who_paginator = Paginator(who_queryset, 10) # 10 items per page
+        try:
+            global_data_page_obj = who_paginator.page(global_page_num)
+        except PageNotAnInteger:
+            global_data_page_obj = who_paginator.page(1)
+        except EmptyPage:
+            global_data_page_obj = who_paginator.page(who_paginator.num_pages)
+        logger.info(f"WHO DB Pagination: Page {global_data_page_obj.number} of {who_paginator.num_pages}")
+
+
+    # --- Get Country List for Dropdown (Only on initial load & if data exists) ---
+    if not is_ajax and who_data_exists:
+         # Get distinct country names from the model, order them
+         who_country_list = list(WHOData.objects.order_by('country').values_list('country', flat=True).distinct())
+         logger.info(f"Generated WHO country list from DB with {len(who_country_list)} entries.")
+
+
+    # --- Prepare response ---
+    if is_ajax:
+        response_data = {}
+        # Prepare CDC data for JSON if requested and available
+        if ajax_target == 'cdc' and us_data_page_obj:
+            # Select only necessary fields for the template
+            object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
+            # Convert Date objects to YYYY-MM-DD strings for JSON
+            for item in object_list:
+                 if item['date']: item['date'] = item['date'].strftime('%Y-%m-%d')
+                 # data_as_of is not currently displayed, but would need formatting too if added
+
+            response_data['us_data'] = {
+                'object_list': object_list,
+                'current_page': us_data_page_obj.number,
+                'total_pages': us_data_page_obj.paginator.num_pages,
+                'has_previous': us_data_page_obj.has_previous(),
+                'has_next': us_data_page_obj.has_next(),
+                'cdc_data_exists': cdc_data_exists, # Still useful for the polling script
+            }
+        # Prepare WHO data for JSON if requested and available
+        elif ajax_target == 'who' and global_data_page_obj:
+             # Select only necessary fields for the template
+             object_list = list(global_data_page_obj.object_list.values(
+                 'date_reported', 'country', 'who_region', 'new_cases',
+                 'cumulative_cases', 'new_deaths', 'cumulative_deaths'
+             ))
+             # Convert Date objects to YYYY-MM-DD strings for JSON
+             for item in object_list:
+                 if item['date_reported']: item['date_reported'] = item['date_reported'].strftime('%Y-%m-%d')
+
+             response_data['global_data'] = {
+                'object_list': object_list,
+                'current_page': global_data_page_obj.number,
+                'total_pages': global_data_page_obj.paginator.num_pages,
+                'has_previous': global_data_page_obj.has_previous(),
+                'has_next': global_data_page_obj.has_next(),
+            }
+        else:
+             logger.warning(f"AJAX request received without valid target or data for target: {ajax_target}")
+             # Return empty dict or specific error structure if needed
+
+        logger.info(f"Returning AJAX response for target: {ajax_target}")
         return JsonResponse(response_data)
 
-    return render(request, 'live_dashboard.html', context)
+    else: # Full page load
+        context = {
+            'selected_state': selected_state,
+            'selected_country': selected_country,
+            'selected_region': selected_region,
+            'us_data': us_data_page_obj, # Pass page object
+            'global_data': global_data_page_obj, # Pass page object
+            'cdc_data_exists': cdc_data_exists,
+            'cdc_task_error': cdc_task_error,
+            'who_country_list': who_country_list, # Pass country list
+            # The template accesses pagination info directly from us_data and global_data page objects
+        }
+        logger.info("Rendering full HTML template.")
+        return render(request, 'live_dashboard.html', context)
+
