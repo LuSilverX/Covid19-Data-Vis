@@ -135,7 +135,12 @@ CELERY_BEAT_SCHEDULE = {
         # Modified the task slightly to handle this.
         'args': ('all_states', ''), # Passing 'all_states' and an empty string for selected_date
     },
-    # You could add more scheduled tasks here later if needed
+    
+    'fetch-who-data-daily': {
+        'task': 'data_handler.tasks.fetch_who_data',    
+        'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),          
+        'args': (),                                     
+    },
 }
 
 # Internationalization
