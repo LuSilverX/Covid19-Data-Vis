@@ -19,3 +19,15 @@ Fix (Implicit): Fixing the underlying database error (Issue 3) allowed the task 
 By addressing the worker visibility, stopping the task flood, and fixing the critical database mismatch, the fetch_cdc_data task could finally run successfully, download the data [cite: 2, 3], save it to the database, and allow the dashboard page [cite: 1] to display it.
 celery -A covid19_project beat -l info
 celery -A covid19_project worker --loglevel=info -c 1
+
+
+
+
+
+We decided to switch from Plotly Dash to Chart.js primarily due to the persistent technical difficulties we 
+encountered trying to get the Dash app components (like graphs and dropdowns) to load and render correctly
+within your Django project setup. Despite checking configurations, running collectstatic, and even trying 
+to isolate the Dash app on its own page, we were still facing issues (like the 404 errors for Dash's JavaScript 
+files) that prevented the visualizations from displaying. Given these integration challenges, Chart.js presents 
+an alternative approach that often involves more direct and potentially simpler integration using JavaScript 
+within the Django template.

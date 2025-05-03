@@ -66,7 +66,7 @@ def get_paginated_data(request):
     })
 
 
-def early_dashboard(request):
+def early_data(request):
     # Separate page numbers for each dataset
     county_page = int(request.GET.get('county_page', 1))
     state_page = int(request.GET.get('state_page', 1))
@@ -92,10 +92,130 @@ def early_dashboard(request):
         'state_data': state_data,
         'us_data': us_data,
     }
-    return render(request, 'early_dashboard.html', context)
+    return render(request, 'early_data.html', context)
+
+def format_chart_data(queryset, label_prefix="", cases_label="Cases", deaths_label="Deaths"):
+    """Helper function to format data for Chart.js"""
+    if not queryset: # Check if queryset is empty or None
+        return None
+
+    try:
+        labels = [item.date.strftime('%Y-%m-%d') for item in queryset]
+        cases_data = [item.cases for item in queryset]
+        deaths_data = [item.deaths for item in queryset]
+
+        return {
+            'labels': labels,
+            'datasets': [
+                {
+                    'label': f'{label_prefix} {cases_label}',
+                    'data': cases_data,
+                    'borderColor': 'rgb(75, 192, 192)',
+                    'tension': 0.1
+                },
+                {
+                    'label': f'{label_prefix} {deaths_label}',
+                    'data': deaths_data,
+                    'borderColor': 'rgb(255, 99, 132)',
+                    'tension': 0.1
+                }
+            ]
+        }
+    except AttributeError:
+        # Handle cases where items might not have expected attributes (e.g., date, cases)
+        print(f"Error formatting chart data for prefix: {label_prefix}. Queryset might be malformed.")
+        return None
 
 
-def live_dashboard(request):
+def chart_data_api(request):
+    """
+    API endpoint to provide data formatted for Chart.js.
+    Accepts optional 'state' and 'county' GET parameters.
+    """
+    state_name = request.GET.get('state', None)
+    county_name = request.GET.get('county', None)
+
+    chart_data = None
+    error_message = None
+    status_code = 200
+
+    try:
+        if state_name and county_name:
+            # County Data
+            queryset = CovidCountyData.objects.filter(
+                state__iexact=state_name, # Case-insensitive match
+                county__iexact=county_name # Case-insensitive match
+            ).order_by('date')
+            if queryset.exists():
+                label = f"{county_name.title()}, {state_name.title()}"
+                chart_data = format_chart_data(queryset, label_prefix=label)
+            else:
+                error_message = f"No data found for County: {county_name}, State: {state_name}"
+                status_code = 404
+
+        elif state_name:
+            # State Data
+            queryset = CovidStateData.objects.filter(
+                state__iexact=state_name # Case-insensitive match
+            ).order_by('date')
+            if queryset.exists():
+                 label = f"{state_name.title()}"
+                 chart_data = format_chart_data(queryset, label_prefix=label)
+            else:
+                error_message = f"No data found for State: {state_name}"
+                status_code = 404
+
+        else:
+            # US Data (Default)
+            queryset = CovidUSData.objects.all().order_by('date')
+            if queryset.exists():
+                 chart_data = format_chart_data(queryset, label_prefix="US")
+            else:
+                error_message = "No US data found"
+                status_code = 404
+
+        if chart_data:
+            return JsonResponse(chart_data)
+        else:
+            # Ensure error message is set if chart_data is None after processing
+            if not error_message:
+                error_message = "Data formatting error or empty queryset."
+                status_code = 500 # Internal error if formatting fails
+            return JsonResponse({'error': error_message}, status=status_code)
+
+    except Exception as e:
+        # Catch unexpected errors during query or formatting
+        print(f"Unexpected error in chart_data_api: {e}")
+        return JsonResponse({'error': 'An unexpected server error occurred.'}, status=500)
+
+def get_states_api(request):
+    try:
+        # Get distinct state names, order them, ignore null/empty
+        states = CovidStateData.objects.exclude(state__isnull=True).exclude(state__exact='').order_by('state').values_list('state', flat=True).distinct()
+        return JsonResponse(list(states), safe=False) # safe=False needed for list response
+    except Exception as e:
+        print(f"Error in get_states_api: {e}")
+        return JsonResponse({'error': 'Could not retrieve states.'}, status=500)
+
+
+# Add view to get counties for a specific state
+def get_counties_api(request):
+    state_name = request.GET.get('state', None)
+    if not state_name:
+        return JsonResponse({'error': 'State parameter is required.'}, status=400)
+    try:
+        # Get distinct county names for the state, order them, ignore null/empty
+        counties = CovidCountyData.objects.filter(state__iexact=state_name).exclude(county__isnull=True).exclude(county__exact='').order_by('county').values_list('county', flat=True).distinct()
+        if not counties:
+             # Return empty list if state exists but has no counties listed (or state doesn't exist)
+             return JsonResponse([], safe=False)
+        return JsonResponse(list(counties), safe=False)
+    except Exception as e:
+         print(f"Error in get_counties_api for state {state_name}: {e}")
+         return JsonResponse({'error': 'Could not retrieve counties.'}, status=500)
+
+
+def live_data(request):
     """
     Fetches and displays CDC (from DB) and WHO (from DB) COVID-19 data.
     Handles filtering and AJAX pagination updates for each dataset independently.
@@ -253,5 +373,5 @@ def live_dashboard(request):
             # The template accesses pagination info directly from us_data and global_data page objects
         }
         logger.info("Rendering full HTML template.")
-        return render(request, 'live_dashboard.html', context)
+        return render(request, 'live_data.html', context)
 

@@ -35,6 +35,7 @@ SECRET_KEY = 'SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")'
 DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Application definition
 
@@ -47,9 +48,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     # Third-party apps
-    'django_plotly_dash.apps.DjangoPlotlyDashConfig',
-    'dpd_static_support',  # Required for static file handling in Dash
-    'channels',            # Required for asynchronous support
+    'channels',            # Asynchronous support
 
     # Custom apps
     'data_handler.apps.DataHandlerConfig',
@@ -64,9 +63,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'django_plotly_dash.middleware.BaseMiddleware',
-]
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',]
 
 ROOT_URLCONF = 'covid19_project.urls'
 
@@ -143,6 +140,11 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
@@ -161,6 +163,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+#STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_collected')
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
