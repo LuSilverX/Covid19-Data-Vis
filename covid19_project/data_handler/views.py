@@ -1,9 +1,10 @@
 import requests
 import csv
+from django.views.decorators.http import require_POST
 from io import StringIO
 from django.shortcuts import render
-from django.http import JsonResponse
-from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData, WHOData
 import logging
 from django.core.cache import cache
@@ -12,35 +13,34 @@ from .tasks import fetch_cdc_data, fetch_who_data
 logger = logging.getLogger(__name__)
 
 def get_paginated_data(request):
-    # Get the page numbers from the request (default to 1)
+    # Extract pagination parameters from the GET request, defaulting to page 1.
     county_page = int(request.GET.get('county_page', 1))
     state_page = int(request.GET.get('state_page', 1))
     us_page = int(request.GET.get('us_page', 1))
 
-    # Number of entries per page for each dataset
     entries_per_page = 10
 
-    # Query all data and order by date (change ordering if desired)
+    # Pre-fetch and order the querysets for each data model.
     county_queryset = CovidCountyData.objects.all().order_by('date')
     state_queryset = CovidStateData.objects.all().order_by('date')
     us_queryset = CovidUSData.objects.all().order_by('date')
 
-    # Create individual paginators
+    # Instantiate a paginator for each queryset.
     county_paginator = Paginator(county_queryset, entries_per_page)
     state_paginator = Paginator(state_queryset, entries_per_page)
     us_paginator = Paginator(us_queryset, entries_per_page)
 
-    # Get each requested page
+    # Retrieve the requested page object for each dataset.
     county_page_obj = county_paginator.get_page(county_page)
     state_page_obj = state_paginator.get_page(state_page)
     us_page_obj = us_paginator.get_page(us_page)
 
-    # Convert each set of objects to a list of dictionaries
+    # Serialize the paginated objects into dictionary lists for the JSON response.
     county_data = list(county_page_obj.object_list.values())
     state_data = list(state_page_obj.object_list.values())
     us_data = list(us_page_obj.object_list.values())
 
-    # Build and return a JSON response
+    # Construct the final JSON payload with data and pagination metadata.
     return JsonResponse({
         'county_data': county_data,
         'county_pagination': {
@@ -65,28 +65,26 @@ def get_paginated_data(request):
         },
     })
 
-
+# This view provides the initial, non-AJAX render of the data.
+# It's essentially a simplified, server-rendered version of the above.(landing page)
 def early_data(request):
-    # Separate page numbers for each dataset
     county_page = int(request.GET.get('county_page', 1))
     state_page = int(request.GET.get('state_page', 1))
     us_page = int(request.GET.get('us_page', 1))
 
-    # Fetch and order the data
     county_list = CovidCountyData.objects.all().order_by('date')
     state_list = CovidStateData.objects.all().order_by('date')
     us_list = CovidUSData.objects.all().order_by('date')
 
-    # Paginator for each dataset
     county_paginator = Paginator(county_list, 10)
     state_paginator = Paginator(state_list, 10)
     us_paginator = Paginator(us_list, 10)
 
-    # Get pages
     county_data = county_paginator.get_page(county_page)
     state_data = state_paginator.get_page(state_page)
     us_data = us_paginator.get_page(us_page)
-
+    
+    # Pass the paginator objects directly into the template context.
     context = {
         'county_data': county_data,
         'state_data': state_data,
@@ -95,15 +93,17 @@ def early_data(request):
     return render(request, 'early_data.html', context)
 
 def format_chart_data(queryset, label_prefix="", cases_label="Cases", deaths_label="Deaths"):
-    """Helper function to format data for Chart.js"""
-    if not queryset: # Check if queryset is empty or None
+    '''Helper function to transform a queryset into a Chart.js-compatible dictionary.'''
+    if not queryset: 
         return None
 
     try:
+        # Deconstruct the queryset into lists for labels and data points.
         labels = [item.date.strftime('%Y-%m-%d') for item in queryset]
         cases_data = [item.cases for item in queryset]
         deaths_data = [item.deaths for item in queryset]
-
+        
+        # Return the structured dictionary that Chart.js expects.
         return {
             'labels': labels,
             'datasets': [
@@ -122,18 +122,18 @@ def format_chart_data(queryset, label_prefix="", cases_label="Cases", deaths_lab
             ]
         }
     except AttributeError:
-        # Handle cases where items might not have expected attributes (e.g., date, cases)
-        print(f"Error formatting chart data for prefix: {label_prefix}. Queryset might be malformed.")
+        # This will trigger if the queryset items lack the expected 'date', 'cases', or 'deaths' fields.
+        logger.error(f"AttributeError while formatting chart data for prefix: {label_prefix}. Queryset might be malformed.")
         return None
 
 
 def chart_data_api(request):
     """
-    API endpoint to provide data formatted for Chart.js.
-    Accepts optional 'state' and 'county' GET parameters.
+    API endpoint that serves data formatted for Chart.js.
+    Supports filtering by 'state' and 'county' via GET parameters.
     """
-    state_name = request.GET.get('state', None)
-    county_name = request.GET.get('county', None)
+    state_name = request.GET.get('state')
+    county_name = request.GET.get('county')
 
     chart_data = None
     error_message = None
@@ -141,10 +141,10 @@ def chart_data_api(request):
 
     try:
         if state_name and county_name:
-            # County Data
+            # Granular search: county within a state.
             queryset = CovidCountyData.objects.filter(
-                state__iexact=state_name, # Case-insensitive match
-                county__iexact=county_name # Case-insensitive match
+                state__iexact=state_name, 
+                county__iexact=county_name
             ).order_by('date')
             if queryset.exists():
                 label = f"{county_name.title()}, {state_name.title()}"
@@ -154,9 +154,9 @@ def chart_data_api(request):
                 status_code = 404
 
         elif state_name:
-            # State Data
+            # Broader search: state-level data.
             queryset = CovidStateData.objects.filter(
-                state__iexact=state_name # Case-insensitive match
+                state__iexact=state_name
             ).order_by('date')
             if queryset.exists():
                  label = f"{state_name.title()}"
@@ -166,7 +166,7 @@ def chart_data_api(request):
                 status_code = 404
 
         else:
-            # US Data (Default)
+            # Default case: nationwide data.
             queryset = CovidUSData.objects.all().order_by('date')
             if queryset.exists():
                  chart_data = format_chart_data(queryset, label_prefix="US")
@@ -177,201 +177,253 @@ def chart_data_api(request):
         if chart_data:
             return JsonResponse(chart_data)
         else:
-            # Ensure error message is set if chart_data is None after processing
+            # Ensure a meaningful error is returned if data processing fails.
             if not error_message:
                 error_message = "Data formatting error or empty queryset."
-                status_code = 500 # Internal error if formatting fails
+                status_code = 500 # Indicates an internal server issue.
             return JsonResponse({'error': error_message}, status=status_code)
 
     except Exception as e:
-        # Catch unexpected errors during query or formatting
-        print(f"Unexpected error in chart_data_api: {e}")
+        # Generic exception handler for unforeseen issues.
+        logger.error(f"Unexpected error in chart_data_api: {e}")
         return JsonResponse({'error': 'An unexpected server error occurred.'}, status=500)
 
 def get_states_api(request):
+    """API endpoint to fetch a distinct, sorted list of states."""
     try:
-        # Get distinct state names, order them, ignore null/empty
+        # Efficiently retrieve a unique list of states directly from the database.
         states = CovidStateData.objects.exclude(state__isnull=True).exclude(state__exact='').order_by('state').values_list('state', flat=True).distinct()
-        return JsonResponse(list(states), safe=False) # safe=False needed for list response
+        return JsonResponse(list(states), safe=False) # safe=False is required to serialize a list.
     except Exception as e:
-        print(f"Error in get_states_api: {e}")
+        logger.error(f"Error in get_states_api: {e}")
         return JsonResponse({'error': 'Could not retrieve states.'}, status=500)
 
 
-# Add view to get counties for a specific state
 def get_counties_api(request):
-    state_name = request.GET.get('state', None)
+    """API endpoint to fetch counties for a given state."""
+    state_name = request.GET.get('state')
     if not state_name:
         return JsonResponse({'error': 'State parameter is required.'}, status=400)
     try:
-        # Get distinct county names for the state, order them, ignore null/empty
+        # Filter counties based on the provided state name (case-insensitive).
         counties = CovidCountyData.objects.filter(state__iexact=state_name).exclude(county__isnull=True).exclude(county__exact='').order_by('county').values_list('county', flat=True).distinct()
-        if not counties:
-             # Return empty list if state exists but has no counties listed (or state doesn't exist)
-             return JsonResponse([], safe=False)
+        # It's valid for a state to have no counties, so return an empty list.
         return JsonResponse(list(counties), safe=False)
     except Exception as e:
-         print(f"Error in get_counties_api for state {state_name}: {e}")
+         logger.error(f"Error in get_counties_api for state {state_name}: {e}")
          return JsonResponse({'error': 'Could not retrieve counties.'}, status=500)
 
 
 def live_data(request):
     """
-    Fetches and displays CDC (from DB) and WHO (from DB) COVID-19 data.
-    Handles filtering and AJAX pagination updates for each dataset independently.
-    Triggers background tasks if data is missing on initial load.
+    Main view for displaying live data. It handles the initial HTML render
+    and subsequent AJAX requests for filtering, pagination, and status polling.
     """
+    # Differentiate between a full page load and an AJAX call.
     is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
-    logger.info(f"Entering live_data_page view. AJAX: {is_ajax}")
+    logger.info(f"Entering live_data view. AJAX: {is_ajax}")
 
-    # --- Parameters ---
+    # --- Ingest request parameters ---
     selected_state = request.GET.get('selected_state', 'united states').lower()
-    selected_country = request.GET.get('selected_country', '') # Keep original case for display
+    selected_country = request.GET.get('selected_country', '')
     selected_region = request.GET.get('selected_region', '')
-    us_page_num = request.GET.get('us_page', 1)
-    global_page_num = request.GET.get('global_page', 1)
     ajax_target = request.GET.get('target') if is_ajax else None
+    is_check_status = request.GET.get('check_status') == 'true'
 
-    # --- Initialize Data Structures ---
+    us_page_num = request.GET.get('us_page', '1')
+    global_page_num = request.GET.get('global_page', '1')
+
+    # --- Initialize context and data variables ---
     us_data_page_obj = None
     global_data_page_obj = None
     who_country_list = []
     cdc_data_exists = False
-    who_data_exists = False # Flag to check if WHO data exists at all
+    who_data_exists = False
     cdc_task_error = None
-    context = {} # Initialize context dictionary
 
-    # --- CDC Data Processing (from DB) ---
-    if not ajax_target or ajax_target == 'cdc':
-        logger.info(f"Processing CDC data for state: {selected_state}")
-        # QuerySet is ordered by Meta class: ordering = ['-date', 'state']
+    # --- CDC Data Processing (from local DB) ---
+    # This block runs for initial loads, CDC-targeted AJAX, or status checks.
+    if not ajax_target or ajax_target == 'cdc' or is_check_status:
+        logger.info(f"Processing CDC data logic for state: {selected_state}")
         us_queryset = CDCData.objects.filter(state__iexact=selected_state)
-
         cdc_data_exists = us_queryset.exists()
-        logger.info(f"CDC Query for {selected_state} returned count: {us_queryset.count()}. Exists: {cdc_data_exists}")
 
         if not cdc_data_exists:
+            # Check cache for a recent task error to avoid re-triggering constantly.
             cache_key = f"cdc_task_error_{selected_state}"
             cdc_task_error = cache.get(cache_key)
-            logger.info(f"Checked cache for CDC task error ({cache_key}): {cdc_task_error}")
-            # Trigger task ONLY on initial load if data doesn't exist
-            if selected_state and not is_ajax:
-                logger.info(f"Queueing fetch_cdc_data task for {selected_state} (initial load, data missing).")
-                fetch_cdc_data.delay(selected_state, '')
-        elif is_ajax and ajax_target == 'cdc':
-             logger.info(f"AJAX poll for CDC {selected_state}: Data exists.")
+            # On initial load, if data is missing and there's no cached error, trigger a Celery task.
+            if selected_state and not is_ajax and not cdc_task_error:
+                logger.info(f"Queueing fetch_cdc_data task for {selected_state}.")
+                try:
+                    fetch_cdc_data.delay(selected_state, '')
+                except Exception as e:
+                    logger.error(f"Error queueing fetch_cdc_data: {e}")
+                    cdc_task_error = "Failed to start data fetch task."
 
+        # Paginate only if data exists or if it's an AJAX request needing a (potentially empty) page object.
+        if cdc_data_exists or (is_ajax and ajax_target == 'cdc'):
+            cdc_paginator = Paginator(us_queryset, 10)
+            try:
+                us_data_page_obj = cdc_paginator.page(us_page_num)
+            except PageNotAnInteger:
+                us_data_page_obj = cdc_paginator.page(1)
+            except EmptyPage:
+                us_data_page_obj = cdc_paginator.page(cdc_paginator.num_pages)
 
-        # Paginate the CDC QuerySet
-        cdc_paginator = Paginator(us_queryset, 10) # 10 items per page
-        try:
-            us_data_page_obj = cdc_paginator.page(us_page_num)
-        except PageNotAnInteger:
-            us_data_page_obj = cdc_paginator.page(1)
-        except EmptyPage:
-            us_data_page_obj = cdc_paginator.page(cdc_paginator.num_pages)
-        logger.info(f"CDC Pagination: Page {us_data_page_obj.number} of {cdc_paginator.num_pages}")
-
-
-    # --- WHO Data Processing (from DB) ---
+    # --- WHO Data Processing (from local DB) ---
     if not ajax_target or ajax_target == 'who':
-        logger.info(f"Processing WHO data from DB for country: '{selected_country}', region: '{selected_region}'")
-        # QuerySet is ordered by Meta class: ordering = ['-date_reported', 'country']
         who_queryset = WHOData.objects.all()
 
-        # Check if *any* WHO data exists (only need to do this once)
-        # We do this before filtering to know if the table is populated at all
-        if not is_ajax: # Only check on initial load
-             who_data_exists = who_queryset.exists()
-             if not who_data_exists:
-                  logger.warning("WHOData table appears empty. Queueing initial fetch_who_data task.")
-                  fetch_who_data.delay() # Trigger initial WHO data fetch if table is empty
-             else:
-                  logger.info("WHOData table has data.")
+        # On initial load, check if the WHO table has any data at all.
+        if not is_ajax and not who_queryset.exists():
+             logger.warning("WHOData table is empty. Queueing initial fetch_who_data.")
+             try:
+                fetch_who_data.delay()
+             except Exception as e:
+                logger.error(f"Error queueing fetch_who_data: {e}")
+        else:
+             who_data_exists = True
 
-        # Apply filters
+        # Apply filters if they were provided in the request.
         if selected_country:
-             # Use exact, case-insensitive match
              who_queryset = who_queryset.filter(country__iexact=selected_country)
         if selected_region:
-             # Use case-insensitive contains
              who_queryset = who_queryset.filter(who_region__icontains=selected_region)
 
-        # Paginate the WHO QuerySet
-        who_paginator = Paginator(who_queryset, 10) # 10 items per page
+        # Paginate the filtered WHO queryset.
+        who_paginator = Paginator(who_queryset, 10)
         try:
             global_data_page_obj = who_paginator.page(global_page_num)
         except PageNotAnInteger:
             global_data_page_obj = who_paginator.page(1)
         except EmptyPage:
-            global_data_page_obj = who_paginator.page(who_paginator.num_pages)
-        logger.info(f"WHO DB Pagination: Page {global_data_page_obj.number} of {who_paginator.num_pages}")
+            global_data_page_obj = who_paginator.page(who_paginator.num_pages) 
 
-
-    # --- Get Country List for Dropdown (Only on initial load & if data exists) ---
+    # --- Populate Country List for Dropdown --- 
+    # Only fetch this on the initial page load to populate the filter dropdown.
     if not is_ajax and who_data_exists:
-         # Get distinct country names from the model, order them
-         who_country_list = list(WHOData.objects.order_by('country').values_list('country', flat=True).distinct())
-         logger.info(f"Generated WHO country list from DB with {len(who_country_list)} entries.")
+         try:
+            who_country_list = list(WHOData.objects.order_by('country').values_list('country', flat=True).distinct())
+         except Exception as e:
+            logger.error(f"Error fetching WHO country list: {e}")
+            who_country_list = []
 
 
-    # --- Prepare response ---
+    # --- Prepare response based on request type (AJAX vs. Full Render) ---
     if is_ajax:
+        logger.info(f"Preparing AJAX response. Target: {ajax_target}, Check Status: {is_check_status}")
         response_data = {}
-        # Prepare CDC data for JSON if requested and available
-        if ajax_target == 'cdc' and us_data_page_obj:
-            # Select only necessary fields for the template
-            object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
-            # Convert Date objects to YYYY-MM-DD strings for JSON
-            for item in object_list:
-                 if item['date']: item['date'] = item['date'].strftime('%Y-%m-%d')
-                 # data_as_of is not currently displayed, but would need formatting too if added
+        try:
+            # --- AJAX: Paginate/Filter CDC Data ---
+            if ajax_target == 'cdc':
+                if us_data_page_obj:
+                    # Serialize the object list and pagination state.
+                    object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
+                    for item in object_list:
+                         item_date = item.get('date')
+                         item['date'] = item_date.strftime('%Y-%m-%d') if item_date else None
+                    response_data['us_data'] = {
+                        'object_list': object_list,
+                        'current_page': us_data_page_obj.number,
+                        'total_pages': us_data_page_obj.paginator.num_pages,
+                        'has_previous': us_data_page_obj.has_previous(),
+                        'has_next': us_data_page_obj.has_next(),
+                    }
+                response_data['cdc_data_exists'] = cdc_data_exists
+                response_data['cdc_task_error'] = cdc_task_error
 
-            response_data['us_data'] = {
-                'object_list': object_list,
-                'current_page': us_data_page_obj.number,
-                'total_pages': us_data_page_obj.paginator.num_pages,
-                'has_previous': us_data_page_obj.has_previous(),
-                'has_next': us_data_page_obj.has_next(),
-                'cdc_data_exists': cdc_data_exists, # Still useful for the polling script
-            }
-        # Prepare WHO data for JSON if requested and available
-        elif ajax_target == 'who' and global_data_page_obj:
-             # Select only necessary fields for the template
-             object_list = list(global_data_page_obj.object_list.values(
-                 'date_reported', 'country', 'who_region', 'new_cases',
-                 'cumulative_cases', 'new_deaths', 'cumulative_deaths'
-             ))
-             # Convert Date objects to YYYY-MM-DD strings for JSON
-             for item in object_list:
-                 if item['date_reported']: item['date_reported'] = item['date_reported'].strftime('%Y-%m-%d')
+            # --- AJAX: Paginate/Filter WHO Data ---
+            elif ajax_target == 'who':
+                 if global_data_page_obj:
+                     object_list = list(global_data_page_obj.object_list.values( 'date_reported', 'country', 'who_region', 'new_cases', 'cumulative_cases', 'new_deaths', 'cumulative_deaths' ))
+                     for item in object_list:
+                         item_date = item.get('date_reported')
+                         item['date_reported'] = item_date.strftime('%Y-%m-%d') if item_date else None
+                     response_data['global_data'] = {
+                         'object_list': object_list,
+                         'current_page': global_data_page_obj.number,
+                         'total_pages': global_data_page_obj.paginator.num_pages,
+                         'has_previous': global_data_page_obj.has_previous(),
+                         'has_next': global_data_page_obj.has_next(),
+                     }
 
-             response_data['global_data'] = {
-                'object_list': object_list,
-                'current_page': global_data_page_obj.number,
-                'total_pages': global_data_page_obj.paginator.num_pages,
-                'has_previous': global_data_page_obj.has_previous(),
-                'has_next': global_data_page_obj.has_next(),
-            }
-        else:
-             logger.warning(f"AJAX request received without valid target or data for target: {ajax_target}")
-             # Return empty dict or specific error structure if needed
+            # --- AJAX: Poll for Task Status --- 
+            elif is_check_status:
+                 logger.info(f"Handling check_status=true. Original Target: {ajax_target}")
+                 # This polling mechanism checks if the background data fetch is complete.
+                 response_data = {'cdc_data_exists': cdc_data_exists, 'cdc_task_error': cdc_task_error}
+                 # If the data has arrived, include the first page in this response to avoid a second request.
+                 if cdc_data_exists and us_data_page_obj:
+                     logger.info("Data found during check_status poll, embedding payload.")
+                     object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
+                     for item in object_list:
+                         item_date = item.get('date')
+                         item['date'] = item_date.strftime('%Y-%m-%d') if item_date else None
+                     response_data['us_data'] = {
+                          'object_list': object_list,
+                          'current_page': us_data_page_obj.number,
+                          'total_pages': us_data_page_obj.paginator.num_pages,
+                          'has_previous': us_data_page_obj.has_previous(),
+                          'has_next': us_data_page_obj.has_next(),
+                      }
+            else:
+                 logger.warning(f"AJAX request with unhandled parameters. Target: {ajax_target}, Check Status: {is_check_status}")
+                 response_data = {'error': 'Invalid AJAX request parameters'}
 
-        logger.info(f"Returning AJAX response for target: {ajax_target}")
-        return JsonResponse(response_data)
+            return JsonResponse(response_data)
 
-    else: # Full page load
+        except Exception as e:
+            logger.error(f"Exception during AJAX response preparation: {e}", exc_info=True)
+            return JsonResponse({'error': 'An internal server error occurred during AJAX processing.'}, status=500)
+
+    else: # --- Full Page Render ---
         context = {
             'selected_state': selected_state,
             'selected_country': selected_country,
             'selected_region': selected_region,
-            'us_data': us_data_page_obj, # Pass page object
-            'global_data': global_data_page_obj, # Pass page object
+            'us_data': us_data_page_obj,
+            'global_data': global_data_page_obj,
             'cdc_data_exists': cdc_data_exists,
             'cdc_task_error': cdc_task_error,
-            'who_country_list': who_country_list, # Pass country list
-            # The template accesses pagination info directly from us_data and global_data page objects
+            'who_country_list': who_country_list,
         }
-        logger.info("Rendering full HTML template.")
+        logger.info("Rendering full HTML template for live_data.")
         return render(request, 'live_data.html', context)
 
+
+@require_POST # Enforce that this endpoint only accepts POST requests.
+def trigger_data_refresh(request):
+    """
+    Handles AJAX POST requests to trigger Celery tasks for data fetching.
+    This acts as a secure bridge between the frontend and the task queue.
+    """
+    source = request.POST.get('source')
+    selected_state = request.POST.get('selected_state')
+
+    logger.info(f"Data refresh POST request for source: '{source}', state: '{selected_state}'")
+
+    if source == 'cdc':
+        if not selected_state:
+            return HttpResponseBadRequest("Missing 'selected_state' parameter for CDC refresh.")
+        try:
+            # Asynchronously dispatch the Celery task.
+            fetch_cdc_data.delay(selected_state=selected_state.lower(), selected_date='')
+            logger.info(f"Successfully queued fetch_cdc_data task for state: {selected_state}")
+            return JsonResponse({'status': 'success', 'message': f'CDC data refresh initiated for "{selected_state.title()}".'})
+        except Exception as e:
+            logger.exception(f"Failed to queue fetch_cdc_data task for state: {selected_state}")
+            return JsonResponse({'status': 'error', 'message': 'Failed to queue CDC refresh task.'}, status=500)
+
+    elif source == 'who':
+        try:
+            fetch_who_data.delay()
+            logger.info("Successfully queued fetch_who_data task.")
+            return JsonResponse({'status': 'success', 'message': 'WHO data refresh initiated.'})
+        except Exception as e:
+            logger.exception("Failed to queue fetch_who_data task.")
+            return JsonResponse({'status': 'error', 'message': 'Failed to queue WHO refresh task.'}, status=500)
+
+    else:
+        logger.error(f"Invalid or missing 'source' parameter in POST: {source}")
+        return HttpResponseBadRequest("Invalid or missing 'source' parameter.")

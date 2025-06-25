@@ -1,37 +1,34 @@
-# data_handler/tasks.py
-
 import os
 import time
 import csv
 import logging
 from io import StringIO
 from datetime import datetime
-import requests # Needed for WHO task
+import requests 
 from celery import shared_task
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-# Import both models
 from .models import CDCData, WHOData
 
 logger = logging.getLogger(__name__)
 
-# --- Helper function for CDC scrape logic ---
+# Helper function for CDC scrape logic
 def _scrape_and_save_state_data(state_key_to_process, state_codes):
     """Handles Selenium navigation, download, parsing, and saving for ONE CDC state."""
     if state_key_to_process not in state_codes:
         logger.error(f"Invalid state key '{state_key_to_process}' passed to _scrape_and_save_state_data.")
-        return False # Indicate failure
+        return False # Indicating failure
 
     state_code = state_codes[state_key_to_process]
     url = f"https://covid.cdc.gov/COVID-DATA-TRACKER/#trends_totaldeaths_select_{state_code}"
     state_name = state_key_to_process.replace("united states", "United States").title()
     logger.info(f"--- Processing CDC state: {state_key_to_process} ---")
 
-    # Set up download directory (consider making path absolute/configurable)
-    # Using os.getcwd() which might be the project root or app root depending on execution context
+    # Setting up download directory (later might consider making path absolute/configurable)
+    # Using os.getcwd() which might be the project root or app root depending on execution contextttt
     download_dir = os.path.join(os.getcwd(), "cdc_downloads")
     logger.warning(f"CDC Download directory: {download_dir}")
     os.makedirs(download_dir, exist_ok=True)
@@ -57,21 +54,21 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         driver.get(url)
         WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        # --- Selenium interactions ---
-        # (Optional view switch - consider removing if problematic)
-        try:
-            logger.info("Looking for 'Weekly Deaths' dropdown...")
-            weekly_deaths_dropdown = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Weekly Deaths')]")))
-            logger.info("Found 'Weekly Deaths' dropdown. Clicking...")
-            weekly_deaths_dropdown.click()
-            logger.info("Looking for 'Cumulative Deaths' option...")
-            cumulative_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Cumulative Deaths')]")))
-            logger.info("Found 'Cumulative Deaths'. Clicking...")
-            cumulative_option.click()
-            time.sleep(2)
-        except Exception as e:
-            logger.warning(f"Could not switch view for {state_key_to_process} (might be okay): {e}")
-            logger.info("Continuing...")
+        # Selenium interactions
+        # (Optional view switch - may remove this if problematic)
+        #try:
+            #logger.info("Looking for 'Weekly Deaths' dropdown...")
+            #weekly_deaths_dropdown = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Weekly Deaths')]")))
+            #logger.info("Found 'Weekly Deaths' dropdown. Clicking...")
+            #weekly_deaths_dropdown.click()
+            #logger.info("Looking for 'Cumulative Deaths' option...")
+            #cumulative_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Cumulative Deaths')]")))
+            #logger.info("Found 'Cumulative Deaths'. Clicking...")
+            #cumulative_option.click()
+            #time.sleep(2)
+        #except Exception as e:
+            #logger.warning(f"Could not switch view for {state_key_to_process} (might be okay): {e}")
+            #logger.info("Continuing...")
 
         logger.info("Looking for 'Data Table for Cumulative Deaths' link...")
         data_table_link = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, f"//*[contains(text(), 'Data Table for Cumulative Deaths') and contains(text(), '{state_name}')]")))
@@ -82,20 +79,20 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         time.sleep(3)
 
         # (Optional iframe switch)
-        logger.info("Checking for Tableau iframe...")
-        try:
-            tableau_iframe = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//iframe[contains(@src, 'tableau')]")))
-            logger.info("Switching to Tableau iframe.")
-            driver.switch_to.frame(tableau_iframe)
-        except Exception as e:
-            logger.info(f"No Tableau iframe found or error: {e}")
+        #logger.info("Checking for Tableau iframe...")
+        #try:
+            #tableau_iframe = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//iframe[contains(@src, 'tableau')]")))
+            #logger.info("Switching to Tableau iframe.")
+            #driver.switch_to.frame(tableau_iframe)
+        #except Exception as e:
+            #logger.info(f"No Tableau iframe found or error: {e}")
 
         logger.info("Looking for 'Download Data' button...")
         time.sleep(5)
         download_button = None
-        # (Simplified download button finding - adjust if needed)
+        # (Simplified download button finding - may adjust if needed)
         try:
-             # Try the ID that worked before first
+             # Trying the ID that worked before first
              download_button = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.ID, "btnUSTrendsTableExport")))
              logger.info("Found 'Download Data' button by ID 'btnUSTrendsTableExport'.")
         except Exception as e:
@@ -135,7 +132,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         csv_file_path = max(csv_files, key=os.path.getctime)
         logger.info(f"Most recent CDC CSV found: {os.path.basename(csv_file_path)}")
 
-        # --- CSV Parsing and Saving ---
+        # CSV Parsing and Saving 
         try:
             with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
                 csv_text = f.read()
@@ -153,7 +150,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         csv_file = StringIO('\n'.join(csv_lines[2:]))
         reader = csv.DictReader(csv_file)
 
-        # Delete existing data for this state *before* processing rows
+        # Deleting existing data for this state before processing rows
         logger.info(f"Clearing existing CDCData for state: {state_key_to_process}")
         count, _ = CDCData.objects.filter(state__iexact=state_key_to_process).delete()
         logger.info(f"Deleted {count} existing CDC records for {state_key_to_process}")
@@ -164,7 +161,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
 
         for row_num, row in enumerate(reader):
             state_geo = row.get('Geography', '').lower()
-            # Ensure the row matches the state we are processing
+            # Ensure the row matches the state thats processing
             if state_geo != state_key_to_process:
                  logger.warning(f"CDC Skipping row: Geo '{state_geo}' != Expected '{state_key_to_process}' in file {csv_file_path}")
                  rows_skipped += 1
@@ -238,14 +235,14 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                  logger.error(f"Error removing CDC CSV {csv_file_path}: {rm_exc}")
         logger.info(f"--- Finished processing CDC state: {state_key_to_process} (Success: {success}) ---")
 
-    return success # Return status for this state
+    return success # Returning status for this state
 
 
-# --- Main CDC Task ---
+# Main CDC Task
 @shared_task(bind=True)
 def fetch_cdc_data(self, selected_state, selected_date):
     task_id = self.request.id
-    logger.error(f"!!!!!!!!!! fetch_cdc_data TASK STARTED (ID: {task_id}) for state: {selected_state} !!!!!!!!!!!")
+    logger.info(f"!!!!!!!!!! fetch_cdc_data TASK STARTED (ID: {task_id}) for state: {selected_state} !!!!!!!!!!!")
 
     state_codes = {
         "united states": "00", "alabama": "01", "alaska": "02", "arizona": "04",
@@ -265,7 +262,7 @@ def fetch_cdc_data(self, selected_state, selected_date):
 
     states_to_process = []
     if selected_state.lower() == 'all_states':
-        # Get all state keys (including 'united states' for this example)
+        # Getting all state keys (including 'united states' for this example)
         states_to_process = list(state_codes.keys())
         logger.info(f"Task ID {task_id}: Scheduled CDC run for ALL {len(states_to_process)} states.")
     elif selected_state.lower() in state_codes:
@@ -281,7 +278,7 @@ def fetch_cdc_data(self, selected_state, selected_date):
 
     for current_state in states_to_process:
         try:
-            # Call the helper function for each state
+            # Calling the helper function for each state
             state_success = _scrape_and_save_state_data(current_state, state_codes)
             if state_success:
                  states_succeeded += 1
@@ -301,11 +298,11 @@ def fetch_cdc_data(self, selected_state, selected_date):
     logger.info(f"Task ID {task_id}: Finished CDC processing. Succeeded: {states_succeeded}, Failed: {states_failed}.")
 
     if not overall_success:
-         # raise Exception(f"Task {task_id} failed to process {states_failed} CDC states.")
-         pass
+        Exception(f"Task {task_id} failed to process {states_failed} CDC states.")
+        pass
 
 
-# --- NEW TASK for WHO Data ---
+# TASK for WHO Data 
 @shared_task(bind=True)
 def fetch_who_data(self):
     """
@@ -321,19 +318,19 @@ def fetch_who_data(self):
     success = False
 
     try:
-        # 1. Fetch the CSV data
+        # 1. Fetching the CSV data
         logger.info(f"Task {task_id}: Fetching WHO data from {who_csv_url}")
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
         response = requests.get(who_csv_url, headers=headers, timeout=30) # Longer timeout
-        response.raise_for_status() # Check for HTTP errors
+        response.raise_for_status() # Checking for HTTP errors
         csv_text = response.text
         logger.info(f"Task {task_id}: Fetched {len(csv_text)} characters. Status: {response.status_code}")
 
         # 2. Prepare CSV Reader
         csv_file = StringIO(csv_text)
-        # Check header - adjust expected headers if needed
+        # Checking header - can adjust expected headers if needed
         first_line = csv_file.readline()
         if 'Date_reported' not in first_line or 'Country' not in first_line or 'WHO_region' not in first_line:
              logger.error(f"Task {task_id}: WHO CSV headers missing/changed in first line: {first_line[:150]}")
@@ -350,7 +347,7 @@ def fetch_who_data(self):
 
         # 4. Loop through CSV rows and save to model
         logger.info(f"Task {task_id}: Processing and saving new WHO data...")
-        # Using individual create calls for simplicity, consider bulk_create for performance on very large datasets
+        # Using individual create calls for simplicity, may consider bulk_create for performance on very large datasets
         # if performance becomes an issue later.
 
         for row_num, row in enumerate(reader):
@@ -425,8 +422,8 @@ def fetch_who_data(self):
         # Log other unexpected errors
         logger.exception(f"Task {task_id}: Unexpected error in fetch_who_data: {e}")
 
-    if not success:
-        raise Exception(f"Task {task_id} failed to fetch or process WHO data.")
+    #if not success:
+        #raise Exception(f"Task {task_id} failed to fetch or process WHO data.")
         #pass
 
     logger.info(f"!!!!!!!!!! fetch_who_data TASK FINISHED (ID: {task_id}) !!!!!!!!!!!")

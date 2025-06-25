@@ -1,465 +1,890 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>COVID-19 Live Data Dashboard</title>
-  <style>
-    /* --- CSS styles (Unchanged) --- */
-    body { font-family: Arial, sans-serif; background-color: #eef2f3; margin: 0; padding: 20px; }
-    .container { max-width: 1200px; width: 90%; margin: auto; background: #fff; padding: 20px; border-radius: 15px; box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2); }
-    h1, h2, h3 { text-align: center; color: #2c3e50; }
-    form { text-align: center; margin-bottom: 30px; }
-    form input, form select, form button { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 5px; }
-    form button { background-color: #007bff; color: #fff; border: none; cursor: pointer; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #007bff; color: white; }
-    tr:nth-child(even) { background-color: #f2f2f2; }
-    tr:hover { background-color: #ddd; }
-    .error, .info { text-align: center; margin-bottom: 20px; padding: 10px; }
-    .error { color: red; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 5px; }
-    .info { color: #007bff; background-color: #e3f2fd; border: 1px solid #bbdefb; border-radius: 5px; }
-    .loading { display: flex; justify-content: center; margin: 20px 0; }
-    .loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #007bff; }
-    .pagination { margin-top: 10px; text-align: center; }
-    .pagination button { padding: 5px 10px; margin: 2px; border: 1px solid #007bff; color: #007bff; border-radius: 5px; background-color: #fff; cursor: pointer; font-size: 14px; }
-    .pagination button.active { background-color: #007bff; color: white; cursor: default; }
-    .pagination button:disabled, /* Keep disabled style for potential future use or if needed */
-    .pagination button.ellipsis { /* Ellipsis style kept in case needed elsewhere, but not used in sliding window */
-        padding: 5px 10px;
-        margin: 2px;
-        text-decoration: none;
-        border: 1px solid #ccc;
-        color: #ccc;
-        border-radius: 5px;
-        background-color: #f8f8f8;
-        cursor: default;
-        opacity: 0.65;
-    }
-    hr { margin: 40px 0; border: 0; border-top: 2px solid #007bff; }
-    .info button {
-        margin-top: 15px;
-        padding: 5px 10px;
-        cursor: pointer;
-        background-color: #007bff;
-        color: white;
-        border: none;
-        border-radius: 4px;
-    }
-  </style>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<meta charset="UTF-8">
+<title>COVID-19 Live Data Dashboard</title>
+<style>
+/* --- CSS styles --- */
+body { font-family: Arial, sans-serif; background-color: #eef2f3; margin: 0; padding: 20px; }
+.container { max-width: 1200px; width: 90%; margin: auto; background: #fff; padding: 20px; border-radius: 15px; box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2); }
+h1, h2, h3 { text-align: center; color: #2c3e50; }
+form { text-align: center; margin-bottom: 30px; }
+form input, form select, form button { padding: 8px; margin: 5px; border: 1px solid #ccc; border-radius: 5px; }
+form button { background-color: #007bff; color: #fff; border: none; cursor: pointer; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #007bff; color: white; }
+tr:nth-child(even) { background-color: #f2f2f2; }
+tr:hover { background-color: #ddd; }
+.error, .info { text-align: center; margin-bottom: 20px; padding: 10px; }
+.error { color: red; background-color: #ffebee; border: 1px solid #ffcdd2; border-radius: 5px; }
+.info { color: #007bff; background-color: #e3f2fd; border: 1px solid #bbdefb; border-radius: 5px; }
+.loading { display: flex; justify-content: center; margin: 20px 0; }
+.loading-spinner { border: 4px solid #f3f3f3; border-top: 4px solid #007bff; border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.back-link { display: block; text-align: center; margin-top: 20px; text-decoration: none; color: #007bff; }
+.pagination { margin-top: 10px; text-align: center; }
+.pagination button { padding: 5px 10px; margin: 2px; border: 1px solid #007bff; color: #007bff; border-radius: 5px; background-color: #fff; cursor: pointer; font-size: 14px; }
+.pagination button.active { background-color: #007bff; color: white; cursor: default; }
+.pagination button:disabled, .pagination button.ellipsis { padding: 5px 10px; margin: 2px; text-decoration: none; border: 1px solid #ccc; color: #ccc; border-radius: 5px; background-color: #f8f8f8; cursor: default; opacity: 0.65; }
+hr { margin: 40px 0; border: 0; border-top: 2px solid #007bff; }
+.info button { margin-top: 15px; padding: 5px 10px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; }
+/* --- Refined Styles for Refresh Area --- */
+.refresh-actions { display: flex; justify-content: center; align-items: center; margin: 10px 0 15px 0; gap: 10px; }
+.refresh-actions button { font-size: 0.9em; padding: 4px 10px; }
+.refresh-actions button:disabled { background-color: #6c757d; cursor: not-allowed; opacity: 0.7; }
+.refresh-status { font-size: 0.9em; color: #6c757d; font-style: italic; }
+.table-container { min-height: 200px; }
+</style>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-  <div class="container">
-    <h1>COVID-19 Live Data Dashboard</h1>
+<div class="container">
+<h1>COVID-19 Live Data Dashboard</h1>
+{% csrf_token %} {# Required for POST requests #}
 
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
+{% if error %} <div class="error">{{ error }}</div> {% endif %}
 
-    {# --- CDC Form (Unchanged) --- #}
-    <form method="get" action="{% url 'live_data_page' %}">
-      <label for="state">US State:</label>
-      <select id="state" name="selected_state">
-        <option value="united states" {% if selected_state == "united states" or not selected_state %}selected{% endif %}>United States</option>
-        <option value="alabama" {% if selected_state == "alabama" %}selected{% endif %}>Alabama</option>
-        <option value="alaska" {% if selected_state == "alaska" %}selected{% endif %}>Alaska</option>
-        <option value="arizona" {% if selected_state == "arizona" %}selected{% endif %}>Arizona</option>
-        <option value="arkansas" {% if selected_state == "arkansas" %}selected{% endif %}>Arkansas</option>
-        <option value="california" {% if selected_state == "california" %}selected{% endif %}>California</option>
-        <option value="colorado" {% if selected_state == "colorado" %}selected{% endif %}>Colorado</option>
-        <option value="connecticut" {% if selected_state == "connecticut" %}selected{% endif %}>Connecticut</option>
-        <option value="delaware" {% if selected_state == "delaware" %}selected{% endif %}>Delaware</option>
-        <option value="district of columbia" {% if selected_state == "district of columbia" %}selected{% endif %}>District of Columbia</option>
-        <option value="florida" {% if selected_state == "florida" %}selected{% endif %}>Florida</option>
-        <option value="georgia" {% if selected_state == "georgia" %}selected{% endif %}>Georgia</option>
-        <option value="hawaii" {% if selected_state == "hawaii" %}selected{% endif %}>Hawaii</option>
-        <option value="idaho" {% if selected_state == "idaho" %}selected{% endif %}>Idaho</option>
-        <option value="illinois" {% if selected_state == "illinois" %}selected{% endif %}>Illinois</option>
-        <option value="indiana" {% if selected_state == "indiana" %}selected{% endif %}>Indiana</option>
-        <option value="iowa" {% if selected_state == "iowa" %}selected{% endif %}>Iowa</option>
-        <option value="kansas" {% if selected_state == "kansas" %}selected{% endif %}>Kansas</option>
-        <option value="kentucky" {% if selected_state == "kentucky" %}selected{% endif %}>Kentucky</option>
-        <option value="louisiana" {% if selected_state == "louisiana" %}selected{% endif %}>Louisiana</option>
-        <option value="maine" {% if selected_state == "maine" %}selected{% endif %}>Maine</option>
-        <option value="maryland" {% if selected_state == "maryland" %}selected{% endif %}>Maryland</option>
-        <option value="massachusetts" {% if selected_state == "massachusetts" %}selected{% endif %}>Massachusetts</option>
-        <option value="michigan" {% if selected_state == "michigan" %}selected{% endif %}>Michigan</option>
-        <option value="minnesota" {% if selected_state == "minnesota" %}selected{% endif %}>Minnesota</option>
-        <option value="mississippi" {% if selected_state == "mississippi" %}selected{% endif %}>Mississippi</option>
-        <option value="missouri" {% if selected_state == "missouri" %}selected{% endif %}>Missouri</option>
-        <option value="montana" {% if selected_state == "montana" %}selected{% endif %}>Montana</option>
-        <option value="nebraska" {% if selected_state == "nebraska" %}selected{% endif %}>Nebraska</option>
-        <option value="nevada" {% if selected_state == "nevada" %}selected{% endif %}>Nevada</option>
-        <option value="new hampshire" {% if selected_state == "new hampshire" %}selected{% endif %}>New Hampshire</option>
-        <option value="new jersey" {% if selected_state == "new jersey" %}selected{% endif %}>New Jersey</option>
-        <option value="new mexico" {% if selected_state == "new mexico" %}selected{% endif %}>New Mexico</option>
-        <option value="new york" {% if selected_state == "new york" %}selected{% endif %}>New York</option>
-        <option value="north carolina" {% if selected_state == "north carolina" %}selected{% endif %}>North Carolina</option>
-        <option value="north dakota" {% if selected_state == "north dakota" %}selected{% endif %}>North Dakota</option>
-        <option value="ohio" {% if selected_state == "ohio" %}selected{% endif %}>Ohio</option>
-        <option value="oklahoma" {% if selected_state == "oklahoma" %}selected{% endif %}>Oklahoma</option>
-        <option value="oregon" {% if selected_state == "oregon" %}selected{% endif %}>Oregon</option>
-        <option value="pennsylvania" {% if selected_state == "pennsylvania" %}selected{% endif %}>Pennsylvania</option>
-        <option value="rhode island" {% if selected_state == "rhode island" %}selected{% endif %}>Rhode Island</option>
-        <option value="south carolina" {% if selected_state == "south carolina" %}selected{% endif %}>South Carolina</option>
-        <option value="south dakota" {% if selected_state == "south dakota" %}selected{% endif %}>South Dakota</option>
-        <option value="tennessee" {% if selected_state == "tennessee" %}selected{% endif %}>Tennessee</option>
-        <option value="texas" {% if selected_state == "texas" %}selected{% endif %}>Texas</option>
-        <option value="utah" {% if selected_state == "utah" %}selected{% endif %}>Utah</option>
-        <option value="vermont" {% if selected_state == "vermont" %}selected{% endif %}>Vermont</option>
-        <option value="virginia" {% if selected_state == "virginia" %}selected{% endif %}>Virginia</option>
-        <option value="washington" {% if selected_state == "washington" %}selected{% endif %}>Washington</option>
-        <option value="west virginia" {% if selected_state == "west virginia" %}selected{% endif %}>West Virginia</option>
-        <option value="wisconsin" {% if selected_state == "wisconsin" %}selected{% endif %}>Wisconsin</option>
-        <option value="wyoming" {% if selected_state == "wyoming" %}selected{% endif %}>Wyoming</option>
-        <option value="new york city" {% if selected_state == "new york city" %}selected{% endif %}>New York City</option>
-      </select>
-      <button type="submit">Filter CDC Data</button>
-    </form>
+{# --- CDC Section --- #}
+<section id="cdc-dashboard">
+<h2>CDC US Dashboard</h2>
+<form method="get" action="{% url 'live_data_page' %}" id="cdc-filter-form">
+<label for="state">US State:</label>
+<select id="state" name="selected_state">
+<option value="united states" {% if selected_state == "united states" or not selected_state %}selected{% endif %}>United States</option>
+{# Add all other state options here as before #}
+<option value="alabama" {% if selected_state == "alabama" %}selected{% endif %}>Alabama</option>
+<option value="alaska" {% if selected_state == "alaska" %}selected{% endif %}>Alaska</option>
+<option value="arizona" {% if selected_state == "arizona" %}selected{% endif %}>Arizona</option>
+<option value="arkansas" {% if selected_state == "arkansas" %}selected{% endif %}>Arkansas</option>
+<option value="california" {% if selected_state == "california" %}selected{% endif %}>California</option>
+<option value="colorado" {% if selected_state == "colorado" %}selected{% endif %}>Colorado</option>
+<option value="connecticut" {% if selected_state == "connecticut" %}selected{% endif %}>Connecticut</option>
+<option value="delaware" {% if selected_state == "delaware" %}selected{% endif %}>Delaware</option>
+<option value="district of columbia" {% if selected_state == "district of columbia" %}selected{% endif %}>District of Columbia</option>
+<option value="florida" {% if selected_state == "florida" %}selected{% endif %}>Florida</option>
+<option value="georgia" {% if selected_state == "georgia" %}selected{% endif %}>Georgia</option>
+<option value="hawaii" {% if selected_state == "hawaii" %}selected{% endif %}>Hawaii</option>
+<option value="idaho" {% if selected_state == "idaho" %}selected{% endif %}>Idaho</option>
+<option value="illinois" {% if selected_state == "illinois" %}selected{% endif %}>Illinois</option>
+<option value="indiana" {% if selected_state == "indiana" %}selected{% endif %}>Indiana</option>
+<option value="iowa" {% if selected_state == "iowa" %}selected{% endif %}>Iowa</option>
+<option value="kansas" {% if selected_state == "kansas" %}selected{% endif %}>Kansas</option>
+<option value="kentucky" {% if selected_state == "kentucky" %}selected{% endif %}>Kentucky</option>
+<option value="louisiana" {% if selected_state == "louisiana" %}selected{% endif %}>Louisiana</option>
+<option value="maine" {% if selected_state == "maine" %}selected{% endif %}>Maine</option>
+<option value="maryland" {% if selected_state == "maryland" %}selected{% endif %}>Maryland</option>
+<option value="massachusetts" {% if selected_state == "massachusetts" %}selected{% endif %}>Massachusetts</option>
+<option value="michigan" {% if selected_state == "michigan" %}selected{% endif %}>Michigan</option>
+<option value="minnesota" {% if selected_state == "minnesota" %}selected{% endif %}>Minnesota</option>
+<option value="mississippi" {% if selected_state == "mississippi" %}selected{% endif %}>Mississippi</option>
+<option value="missouri" {% if selected_state == "missouri" %}selected{% endif %}>Missouri</option>
+<option value="montana" {% if selected_state == "montana" %}selected{% endif %}>Montana</option>
+<option value="nebraska" {% if selected_state == "nebraska" %}selected{% endif %}>Nebraska</option>
+<option value="nevada" {% if selected_state == "nevada" %}selected{% endif %}>Nevada</option>
+<option value="new hampshire" {% if selected_state == "new hampshire" %}selected{% endif %}>New Hampshire</option>
+<option value="new jersey" {% if selected_state == "new jersey" %}selected{% endif %}>New Jersey</option>
+<option value="new mexico" {% if selected_state == "new mexico" %}selected{% endif %}>New Mexico</option>
+<option value="new york" {% if selected_state == "new york" %}selected{% endif %}>New York</option>
+<option value="north carolina" {% if selected_state == "north carolina" %}selected{% endif %}>North Carolina</option>
+<option value="north dakota" {% if selected_state == "north dakota" %}selected{% endif %}>North Dakota</option>
+<option value="ohio" {% if selected_state == "ohio" %}selected{% endif %}>Ohio</option>
+<option value="oklahoma" {% if selected_state == "oklahoma" %}selected{% endif %}>Oklahoma</option>
+<option value="oregon" {% if selected_state == "oregon" %}selected{% endif %}>Oregon</option>
+<option value="pennsylvania" {% if selected_state == "pennsylvania" %}selected{% endif %}>Pennsylvania</option>
+<option value="rhode island" {% if selected_state == "rhode island" %}selected{% endif %}>Rhode Island</option>
+<option value="south carolina" {% if selected_state == "south carolina" %}selected{% endif %}>South Carolina</option>
+<option value="south dakota" {% if selected_state == "south dakota" %}selected{% endif %}>South Dakota</option>
+<option value="tennessee" {% if selected_state == "tennessee" %}selected{% endif %}>Tennessee</option>
+<option value="texas" {% if selected_state == "texas" %}selected{% endif %}>Texas</option>
+<option value="utah" {% if selected_state == "utah" %}selected{% endif %}>Utah</option>
+<option value="vermont" {% if selected_state == "vermont" %}selected{% endif %}>Vermont</option>
+<option value="virginia" {% if selected_state == "virginia" %}selected{% endif %}>Virginia</option>
+<option value="washington" {% if selected_state == "washington" %}selected{% endif %}>Washington</option>
+<option value="west virginia" {% if selected_state == "west virginia" %}selected{% endif %}>West Virginia</option>
+<option value="wisconsin" {% if selected_state == "wisconsin" %}selected{% endif %}>Wisconsin</option>
+<option value="wyoming" {% if selected_state == "wyoming" %}selected{% endif %}>Wyoming</option>
+<option value="new york city" {% if selected_state == "new york city" %}selected{% endif %}>New York City</option>
+</select>
+<button type="submit">Filter CDC Data</button>
+</form>
+<div class="refresh-actions">
+<button type="button" class="refresh-button" data-source="cdc">Refresh CDC Data</button>
+<span id="cdc-refresh-status" class="refresh-status"></span>
+</div>
 
-    <section id="cdc-dashboard">
-      <h2>CDC US Dashboard</h2>
-      {% if cdc_data_exists %}
-        {# --- CDC Table (Unchanged) --- #}
-        <table>
-          <thead>
-            <tr>
-              <th>State</th>
-              <th>Date</th>
-              <th>Deaths (Total)</th>
-            </tr>
-          </thead>
-          <tbody id="cdc-data-tbody">
-            {% for entry in us_data %}
-              <tr>
-                <td>{{ entry.state|title }}</td>
-                <td>{{ entry.date|date:"M d, Y" }}</td>
-                <td>{% if entry.deaths_total == 0 %}0{% else %}{{ entry.deaths_total|default:"N/A" }}{% endif %}</td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="3" style="text-align:center;">No CDC data matches your filter.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+<div id="cdc-data-container" class="table-container">
+{% if cdc_data_exists %}
+<table id="cdc-data-table">
+<thead><tr><th>State</th><th>Date</th><th>Deaths (Total)</th></tr></thead>
+<tbody id="cdc-data-tbody">
+{% for entry in us_data %}
+<tr>
+<td>{{ entry.state|title }}</td>
+<td>{{ entry.date|date:"M d, Y" }}</td>
+<td>{% if entry.deaths_total == 0 %}0{% else %}{{ entry.deaths_total|default:"N/A" }}{% endif %}</td>
+</tr>
+{% empty %}
+<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+<div class="pagination" id="cdc-pagination-container"></div>
+{% elif cdc_task_error %}
+<div class="error"> <p>Error fetching initial data for "{{ selected_state|title }}": {{ cdc_task_error }}</p> <p>Please try again later or use the Refresh button.</p> </div>
+{% else %}
+<div class="info initial-loading-info">
+<p>Fetching initial COVID-19 data for "{{ selected_state|title }}"...</p>
+<div class="loading"><div class="loading-spinner"></div></div>
+<p>This section will update automatically.</p>
+<button type="button" onclick="showWaitInfo()">Why the wait?</button>
+</div>
+{% endif %}
+</div>
+</section>
 
-        {# ***** SERVER-SIDE CDC PAGINATION (Renders initial state, JS overrides on click) ***** #}
-        <div class="pagination" id="cdc-pagination-container">
-            {% with page_obj=us_data dataset_name='cdc' %}
-                {% if page_obj.has_other_pages %}
-                    {# First/Previous - ONLY RENDER IF APPLICABLE #}
-                    {% if page_obj.has_previous %}
-                        <button type="button" onclick="setPage('{{ dataset_name }}', 1)">First</button>
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.previous_page_number }})">← Previous</button>
-                    {% endif %}
+<hr>
 
-                    {# Initial Page Number Logic (1 ... current ... total) #}
-                    {% with current=page_obj.number total=page_obj.paginator.num_pages %}
-                        {# Page 1 #}
-                        {% if current == 1 %}<button type="button" class="active">1</button>{% else %}<button type="button" onclick="setPage('{{ dataset_name }}', 1)">1</button>{% endif %}
-                        {# Ellipsis 1 #}
-                        {% if current > 3 %}<button disabled class="ellipsis">...</button>{% endif %}
-                        {# Page current - 1 #}
-                        {% if current > 2 %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ current|add:'-1' }})">{{ current|add:"-1" }}</button>{% endif %}
-                        {# Page current (if not 1 or total) #}
-                        {% if current != 1 and current != total %}<button type="button" class="active">{{ current }}</button>{% endif %}
-                        {# Page current + 1 #}
-                        {% if current < total|add:"-1" %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ current|add:'1' }})">{{ current|add:"1" }}</button>{% endif %}
-                        {# Ellipsis 2 #}
-                        {% if current < total|add:"-2" %}<button disabled class="ellipsis">...</button>{% endif %}
-                        {# Page total (if not 1) #}
-                        {% if total > 1 %}{% if current == total %}<button type="button" class="active">{{ total }}</button>{% else %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ total }})">{{ total }}</button>{% endif %}{% endif %}
-                    {% endwith %}
+{# --- WHO Section --- (UNCHANGED from previous versions) #}
+<section id="who-dashboard">
+<h2>WHO Global Dashboard</h2>
+<form method="get" action="{% url 'live_data_page' %}" id="who-filter-form">
+<label for="country">Country (WHO):</label>
+<select id="country" name="selected_country">
+<option value="">All Countries</option>
+{% for country_name in who_country_list %}
+<option value="{{ country_name }}" {% if selected_country == country_name %}selected{% endif %}>{{ country_name }}</option>
+{% endfor %}
+</select>
+<label for="region">WHO Region:</label>
+<input type="text" id="region" name="selected_region" value="{{ selected_region }}" placeholder="e.g., AMRO">
+<button type="submit">Filter WHO Data</button>
+</form>
+<div class="refresh-actions">
+<button type="button" class="refresh-button" data-source="who">Refresh WHO Data</button>
+<span id="who-refresh-status" class="refresh-status"></span>
+</div>
+<div id="who-data-container" class="table-container">
+{% if global_data %}
+<table>
+<thead><tr><th>Country</th><th>WHO Region</th><th>Date Reported</th><th>Cases (Total)</th><th>Cases (New)</th><th>Deaths (Total)</th><th>Deaths (New)</th></tr></thead>
+<tbody id="who-data-tbody">
+{% for entry in global_data %}
+<tr>
+<td>{{ entry.country }}</td><td>{{ entry.who_region }}</td><td>{{ entry.date_reported|date:"M d, Y" }}</td>
+<td>{{ entry.cumulative_cases|default:"0" }}</td><td>{{ entry.new_cases|default:"0" }}</td>
+<td>{{ entry.cumulative_deaths|default:"0" }}</td><td>{{ entry.new_deaths|default:"0" }}</td>
+</tr>
+{% empty %}
+<tr><td colspan="7" style="text-align:center;">No WHO data matches your filter for this page.</td></tr>
+{% endfor %}
+</tbody>
+</table>
+<div class="pagination" id="who-pagination-container"></div>
+{% else %}
+{% if who_country_list %}
+<p class="info">No WHO data matches your current filter.</p>
+{% else %}
+<p class="info initial-loading-info">WHO data is currently unavailable or fetching.</p>
+{% endif %}
+<table style="display: none;">
+<thead><tr><th>Country</th><th>WHO Region</th><th>Date Reported</th><th>Cases (Total)</th><th>Cases (New)</th><th>Deaths (Total)</th><th>Deaths (New)</th></tr></thead>
+<tbody id="who-data-tbody"></tbody>
+</table>
+<div class="pagination" id="who-pagination-container" style="display: none;"></div>
+{% endif %}
+</div>
+</section>
 
-                    {# Next/Last - ONLY RENDER IF APPLICABLE #}
-                    {% if page_obj.has_next %}
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.next_page_number }})">Next →</button>
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.paginator.num_pages }})">Last</button>
-                    {% endif %}
-                {% endif %}
-            {% endwith %}
-        </div>
-        {# ***** END SERVER-SIDE CDC PAGINATION ***** #}
+<a class="back-link" href="{% url 'main' %}">← Return to Main Page</a>
+</div>
 
-        {% elif cdc_task_error %}
-          {# --- Error Message (Unchanged) --- #}
-          <div class="error">
-              <p>Error fetching data for "{{ selected_state|title }}": {{ cdc_task_error }}</p>
-              <p>Please try again later or select a different state.</p>
-          </div>
-      {% else %}
-        {# --- Loading Message & Script (Unchanged) --- #}
-        <div class="info">
-          <p>COVID-19 data for "{{ selected_state|title }}" is being fetched from the CDC website...</p>
-          <div class="loading"><div class="loading-spinner"></div></div>
-          <p>This may take a moment. The data will appear automatically when ready.</p>
-          <button type="button" onclick="showWaitInfo()">Why the wait?</button>
-        </div>
-        <script>
-          function showWaitInfo() { alert('Fetching live data can take time depending on the source website\'s response speed and the amount of data requested.'); }
-          const dataCheckInterval = setInterval(function() {
-              fetch(window.location.href + '?check_status=true&state={{ selected_state }}', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                  .then(response => response.json())
-                  .then(data => {
-                      if (data.cdc_data_exists || data.cdc_task_error) {
-                          clearInterval(dataCheckInterval); window.location.reload();
-                      }
-                  })
-                  .catch(error => console.error('Error checking data status:', error));
-          }, 5000);
-        </script>
-      {% endif %}
-    </section>
+<script>
+// Global State & Config
+let cdcCurrentPage = {% if us_data %}{{ us_data.number|default:"1" }}{% else %}1{% endif %};
+let whoCurrentPage = {% if global_data %}{{ global_data.number|default:"1" }}{% else %}1{% endif %};
+let currentFilters = {
+selected_state: "{{ selected_state|escapejs }}",
+selected_country: "{{ selected_country|escapejs }}",
+selected_region: "{{ selected_region|escapejs }}"
+};
+let pollingIntervals = { cdc: null, who: null };
+let lastRenderedSignatures = { cdc: null, who: null };
+const POLLING_INTERVAL_MS = 7000;
+const POLLING_TIMEOUT_MS = 180000;
+const MIN_DELAY_BEFORE_POLL_MS = 2000;
 
-    <hr>
+// CSRF Setup
+function getCookie(name) {
+let cookieValue = null;
+if (document.cookie && document.cookie !== '') {
+const cookies = document.cookie.split(';');
+for (let i = 0; i < cookies.length; i++) {
+const cookie = cookies[i].trim();
+if (cookie.substring(0, name.length + 1) === (name + '=')) {
+cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+break;
+}
+}
+}
+return cookieValue;
+}
+const csrftoken = getCookie('csrftoken') || $('input[name="csrfmiddlewaretoken"]').val();
+$.ajaxSetup({
+beforeSend: function(xhr, settings) {
+if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+xhr.setRequestHeader("X-CSRFToken", csrftoken);
+}
+}
+});
 
-    {# --- WHO Form (Unchanged) --- #}
-    <form method="get" action="{% url 'live_data_page' %}">
-      <label for="country">Country (WHO):</label>
-      <select id="country" name="selected_country">
-        <option value="">All Countries</option>
-        {% for country_name in who_country_list %}
-            <option value="{{ country_name }}" {% if selected_country == country_name %}selected{% endif %}>{{ country_name }}</option>
-        {% endfor %}
-      </select>
-      <label for="region">WHO Region:</label>
-      <input type="text" id="region" name="selected_region" value="{{ selected_region }}" placeholder="e.g., AMRO">
-      <button type="submit">Filter WHO Data</button>
-    </form>
+// Helper Functions
+function showWaitInfo() {
+alert('This server uses scraping technology to find and retrieve updated data after the CDC stopped providing a reliable API for seamless data retrival once the pandemic ended. The page will refresh automatically if new data is found. This process may take a minute or 2.');
+}
 
-    <section id="who-dashboard">
-      <h2>WHO Global Dashboard</h2>
-      {% if global_data %}
-        {# --- WHO Table (Unchanged) --- #}
-        <table>
-          <thead>
-            <tr>
-              <th>Country</th><th>WHO Region</th><th>Date Reported</th><th>Cases (Total)</th><th>Cases (New)</th><th>Deaths (Total)</th><th>Deaths (New)</th>
-            </tr>
-          </thead>
-          <tbody id="who-data-tbody">
-            {% for entry in global_data %}
-              <tr>
-                <td>{{ entry.country }}</td><td>{{ entry.who_region }}</td><td>{{ entry.date_reported|date:"M d, Y" }}</td><td>{{ entry.cumulative_cases|default:"0" }}</td><td>{{ entry.new_cases|default:"0" }}</td><td>{{ entry.cumulative_deaths|default:"0" }}</td><td>{{ entry.new_deaths|default:"0" }}</td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="7" style="text-align:center;">No WHO data matches your filter for this page.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+function getDataSignature(dataset, objectList) {
+if (!objectList || objectList.length === 0) { return null; }
+const firstItem = objectList[0];
+if (dataset === 'cdc') {
+return `${firstItem.date}-${firstItem.deaths_total}`;
+} else if (dataset === 'who') {
+return `${firstItem.date_reported}-${firstItem.country}-${firstItem.cumulative_cases}-${firstItem.cumulative_deaths}`;
+}
+return null;
+}
 
-         {# ***** SERVER-SIDE WHO PAGINATION (Renders initial state, JS overrides on click) ***** #}
-         <div class="pagination" id="who-pagination-container">
-            {% with page_obj=global_data dataset_name='who' %}
-                 {% if page_obj.has_other_pages %}
-                    {# First/Previous - ONLY RENDER IF APPLICABLE #}
-                    {% if page_obj.has_previous %}
-                        <button type="button" onclick="setPage('{{ dataset_name }}', 1)">First</button>
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.previous_page_number }})">← Previous</button>
-                    {% endif %}
+// Pagination & Data Rendering
+function setPage(dataset, page) {
+if (page < 1) page = 1;
+console.log(`Set page requested for ${dataset} to ${page}`);
+if (dataset === 'cdc') { cdcCurrentPage = page; } else { whoCurrentPage = page; }
+loadData(dataset, page);
+}
 
-                    {# Initial Page Number Logic (1 ... current ... total) #}
-                    {% with current=page_obj.number total=page_obj.paginator.num_pages %}
-                         {# Page 1 #}
-                        {% if current == 1 %}<button type="button" class="active">1</button>{% else %}<button type="button" onclick="setPage('{{ dataset_name }}', 1)">1</button>{% endif %}
-                        {# Ellipsis 1 #}
-                        {% if current > 3 %}<button disabled class="ellipsis">...</button>{% endif %}
-                        {# Page current - 1 #}
-                        {% if current > 2 %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ current|add:'-1' }})">{{ current|add:"-1" }}</button>{% endif %}
-                        {# Page current (if not 1 or total) #}
-                        {% if current != 1 and current != total %}<button type="button" class="active">{{ current }}</button>{% endif %}
-                        {# Page current + 1 #}
-                        {% if current < total|add:"-1" %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ current|add:'1' }})">{{ current|add:"1" }}</button>{% endif %}
-                        {# Ellipsis 2 #}
-                        {% if current < total|add:"-2" %}<button disabled class="ellipsis">...</button>{% endif %}
-                        {# Page total (if not 1) #}
-                        {% if total > 1 %}{% if current == total %}<button type="button" class="active">{{ total }}</button>{% else %}<button type="button" onclick="setPage('{{ dataset_name }}', {{ total }})">{{ total }}</button>{% endif %}{% endif %}
-                    {% endwith %}
+function updatePaginationControls(dataset, paginationData) {
+let containerId = '';
+if (!paginationData || typeof paginationData.current_page === 'undefined' || typeof paginationData.total_pages === 'undefined') {
+console.warn(`Pagination data incomplete for ${dataset}:`, paginationData, `. Controls not updated.`);
+if(dataset === 'cdc') $('#cdc-pagination-container').empty().hide();
+if(dataset === 'who') $('#who-pagination-container').empty().hide();
+return;
+}
+let currentPage = paginationData.current_page;
+let totalPages = paginationData.total_pages;
+let hasPrevious = paginationData.has_previous === true;
+let hasNext = paginationData.has_next === true;
+let previousPageNumber = paginationData.previous_page_number;
+let nextPageNumber = paginationData.next_page_number;
+if (dataset === 'cdc') {
+containerId = '#cdc-pagination-container';
+} else if (dataset === 'who') {
+containerId = '#who-pagination-container';
+} else {
+console.error("Unknown dataset for updatePaginationControls:", dataset);
+return;
+}
+const container = $(containerId);
+container.empty().show();
+if (totalPages && totalPages > 1) {
+if (hasPrevious) {
+container.append(`<button type="button" onclick="setPage('${dataset}', 1)">First</button>`);
+let prevNum = previousPageNumber != null ? previousPageNumber : (currentPage > 1 ? currentPage - 1 : 1);
+container.append(`<button type="button" onclick="setPage('${dataset}', ${prevNum})">← Previous</button>`);
+}
+const windowSize = 5;
+const pagesToShowBeforeAndAfter = Math.floor(windowSize / 2);
+let startPage = Math.max(1, currentPage - pagesToShowBeforeAndAfter);
+let endPage = Math.min(totalPages, currentPage + pagesToShowBeforeAndAfter);
+if (endPage - startPage + 1 < windowSize) {
+if (startPage === 1) {
+endPage = Math.min(totalPages, startPage + windowSize - 1);
+} else if (endPage === totalPages) {
+startPage = Math.max(1, endPage - windowSize + 1);
+}
+}
+if (startPage > 1) {
+container.append(`<button type="button" onclick="setPage('${dataset}', 1)">1</button>`);
+if (startPage > 2) {
+container.append(`<button type="button" class="ellipsis" disabled>...</button>`);
+}
+}
+for (let i = startPage; i <= endPage; i++) {
+if (i === currentPage) {
+container.append(`<button type="button" class="active">${i}</button>`);
+} else {
+container.append(`<button type="button" onclick="setPage('${dataset}', ${i})">${i}</button>`);
+}
+}
+if (endPage < totalPages) {
+if (endPage < totalPages - 1) {
+container.append(`<button type="button" class="ellipsis" disabled>...</button>`);
+}
+container.append(`<button type="button" onclick="setPage('${dataset}', ${totalPages})">${totalPages}</button>`);
+}
+if (hasNext) {
+let nextNum = nextPageNumber != null ? nextPageNumber : (currentPage < totalPages ? currentPage + 1 : totalPages);
+container.append(`<button type="button" onclick="setPage('${dataset}', ${nextNum})">Next →</button>`);
+container.append(`<button type="button" onclick="setPage('${dataset}', ${totalPages})">Last</button>`);
+}
+} else {
+container.hide();
+}
+}
 
-                    {# Next/Last - ONLY RENDER IF APPLICABLE #}
-                    {% if page_obj.has_next %}
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.next_page_number }})">Next →</button>
-                        <button type="button" onclick="setPage('{{ dataset_name }}', {{ page_obj.paginator.num_pages }})">Last</button>
-                    {% endif %}
-                {% endif %}
-            {% endwith %}
-       </div>
-       {# ***** END SERVER-SIDE WHO PAGINATION ***** #}
+function renderTableRows(dataset, objectList) {
+let tableHtml = '';
+let colspan = dataset === 'cdc' ? 3 : 7;
+if (!objectList || objectList.length === 0) {
+return `<tr><td colspan="${colspan}" style="text-align:center;">No ${dataset.toUpperCase()} data matches your filter for this page.</td></tr>`;
+}
+objectList.forEach(entry => {
+if (dataset === 'cdc') {
+let formattedDate = 'N/A';
+if (entry.date) {
+try {
+const dateParts = entry.date.split('-');
+const dateObject = new Date(Date.UTC(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10)));
+if (!isNaN(dateObject.getTime())) {
+formattedDate = dateObject.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+} else {
+formattedDate = entry.date;
+}
+} catch (e) {
+console.error("Error parsing CDC date:", entry.date, e);
+formattedDate = entry.date;
+}
+}
+const stateName = entry.state ? (entry.state.charAt(0).toUpperCase() + entry.state.slice(1)) : 'N/A';
+const deathsTotal = entry.deaths_total === 0 ? '0' : (entry.deaths_total != null ? entry.deaths_total : 'N/A');
+tableHtml += `<tr><td>${stateName}</td><td>${formattedDate}</td><td>${deathsTotal}</td></tr>`;
+} else { // WHO
+let formattedDate = 'N/A';
+if (entry.date_reported) {
+try {
+const dateParts = entry.date_reported.split('-');
+const dateObject = new Date(Date.UTC(parseInt(dateParts[0], 10), parseInt(dateParts[1], 10) - 1, parseInt(dateParts[2], 10)));
+if (!isNaN(dateObject.getTime())) {
+formattedDate = dateObject.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+} else {
+formattedDate = entry.date_reported;
+}
+} catch (e) {
+console.error("Error parsing WHO date:", entry.date_reported, e);
+formattedDate = entry.date_reported;
+}
+}
+const country = entry.country || 'N/A';
+const whoRegion = entry.who_region || 'N/A';
+const cumulativeCases = entry.cumulative_cases != null ? entry.cumulative_cases : '0';
+const newCases = entry.new_cases != null ? entry.new_cases : '0';
+const cumulativeDeaths = entry.cumulative_deaths != null ? entry.cumulative_deaths : '0';
+const newDeaths = entry.new_deaths != null ? entry.new_deaths : '0';
+tableHtml += `<tr><td>${country}</td><td>${whoRegion}</td><td>${formattedDate}</td><td>${cumulativeCases}</td><td>${newCases}</td><td>${cumulativeDeaths}</td><td>${newDeaths}</td></tr>`;
+}
+});
+return tableHtml;
+}
 
-      {% else %}
-        <p class="info">WHO data is unavailable or filter returned no results.</p>
-      {% endif %}
-    </section>
+// Function to update the entire display area for a dataset
+// This function is now primarily used for pagination or other direct data loads,
+// as pollForCDCUpdates handles its own DOM replacement for CDC.
+function updateDisplayForDataset(dataset, data) {
+console.log(`Updating display for ${dataset} using data:`, data);
+const dataContainerId = `#${dataset}-data-container`;
+const tableId = `#${dataset}-data-table`;
+const tbodyId = `#${dataset}-data-tbody`;
+const paginationContainerId = `#${dataset}-pagination-container`;
+const refreshButton = $(`.refresh-button[data-source='${dataset}']`);
+const statusSpan = $(`#${dataset}-refresh-status`);
 
-    <a class="back-link" href="{% url 'main' %}">← Return to Main Page</a>
-  </div>
+// If the table doesn't exist, pollForCDCUpdates handles reconstruction.
+// This check adds robustness for other contexts.
+if ($(tableId).length === 0) {
+console.warn(`Table ${tableId} not found. updateDisplayForDataset might be called inappropriately for ${dataset}.`);
+if (dataset === 'who') {
+const whoTable = $(dataContainerId).find('table'); // finds the first table
+if (whoTable.css('display') === 'none') {
+console.log("WHO table was hidden, showing it now.");
+whoTable.show();
+$(paginationContainerId).show(); // show pagination container
+}
+}
+}
 
-  {# ***** START JAVASCRIPT SECTION ***** #}
-  <script>
-    // Global page state (Unchanged)
-    let cdcCurrentPage = {{ us_data.number|default:"1" }};
-    let whoCurrentPage = {{ global_data.number|default:"1" }};
+$(dataContainerId).find('.initial-loading-info, .error').remove();
 
-    // Optional: Info function (Unchanged)
-    function showWaitInfo() {
-        alert('Fetching live data can take time depending on the source website\'s response speed and the amount of data requested.');
-    }
+// Render table rows
+try {
+const tableHtml = renderTableRows(dataset, data.object_list);
+console.log("Object list passed to renderTableRows (updateDisplayForDataset):", data.object_list);
+console.log("HTML generated by renderTableRows (updateDisplayForDataset):", tableHtml);
+$(tbodyId).html(tableHtml);
+console.log("Successfully rendered rows for cdc (updateDisplayForDataset)");
+console.log("Content of tbody after .html() (updateDisplayForDataset):", $(tbodyId).html());
+} catch(e) {
+console.error(`Error rendering table rows for ${dataset}:`, e);
+const colspan = dataset === 'cdc' ? 3 : 7;
+$(tbodyId).html(`<tr><td colspan="${colspan}" style="text-align:center;">Error displaying data. Check console.</td></tr>`);
+}
 
-    // Function to change page via AJAX (Unchanged)
-    function setPage(dataset, page) {
-      console.log(`Setting page for ${dataset} to ${page}`);
-      let targetUrl = '{% url "live_data_page" %}';
-      let dataToSend = {
-          selected_state: $("#state").val(),
-          selected_country: $("#country").val(),
-          selected_region: $("#region").val(),
-      };
-      if (dataset === 'cdc') {
-        dataToSend.us_page = page; dataToSend.target = 'cdc';
-      } else if (dataset === 'who') {
-        dataToSend.global_page = page; dataToSend.target = 'who';
-      } else { console.error("Unknown dataset for setPage:", dataset); return; }
-      loadData(targetUrl, dataToSend, dataset);
-    }
+// Update pagination controls
+try {
+// ---> TEMPORARILY COMMENT THIS OUT FOR DEBUGGING for calls to this function <---
+// updatePaginationControls(dataset, data);
+// console.log(`Successfully updated pagination for ${dataset} (updateDisplayForDataset)`);
+console.log("SKIPPED pagination update for debugging (updateDisplayForDataset).");
+} catch (e) {
+console.error(`Error updating pagination controls for ${dataset}:`, e);
+$(paginationContainerId).html('<p style="color:red; text-align:center;">Error loading pagination.</p>');
+}
+
+lastRenderedSignatures[dataset] = getDataSignature(dataset, data.object_list);
+console.log(`Stored new signature for ${dataset}:`, lastRenderedSignatures[dataset]);
+refreshButton.prop('disabled', false);
+if (statusSpan.length > 0) {
+setTimeout(() => { statusSpan.text(''); }, 3000);
+}
+}
+
+function fetchData(dataset, page, callbackSuccess, callbackError) {
+if (page < 1) {
+console.warn(`WorkspaceData called with invalid page ${page} for ${dataset}. Using page 1.`);
+page = 1;
+}
+console.log(`Workspaceing data for ${dataset}, page ${page}. Filters:`, currentFilters);
+let targetUrl = '{% url "live_data_page" %}';
+let dataToSend = {
+selected_state: currentFilters.selected_state,
+selected_country: currentFilters.selected_country,
+selected_region: currentFilters.selected_region,
+target: dataset
+};
+if (dataset === 'cdc') { dataToSend.us_page = page; }
+else if (dataset === 'who') { dataToSend.global_page = page; }
+else {
+console.error("Unknown dataset for fetchData:", dataset);
+callbackError("Unknown dataset requested.");
+return;
+}
+$.ajax({
+url: targetUrl,
+data: dataToSend,
+method: 'GET',
+headers: { 'X-Requested-With': 'XMLHttpRequest' },
+dataType: 'json',
+success: function(response) {
+console.log(`AJAX success for ${dataset}, page ${page}:`, response);
+let dataKey = dataset === 'cdc' ? 'us_data' : 'global_data';
+if (response && response[dataKey]) {
+callbackSuccess(response[dataKey]);
+} else {
+console.warn(`AJAX response for ${dataset} missing expected key '${dataKey}'. Response:`, response);
+callbackError("Data structure mismatch in response.");
+}
+},
+error: function(xhr, status, error) {
+console.error(`AJAX error during fetchData for ${dataset} (page ${page}):`, status, error, xhr.responseText);
+let errorMsg = `AJAX Error: ${status}`;
+if (error) { errorMsg += ` - ${error}`; }
+try {
+const responseJson = JSON.parse(xhr.responseText);
+if(responseJson.error) { errorMsg = `Server Error: ${responseJson.error}`; }
+} catch (e) { /* Ignore parsing error */ }
+callbackError(errorMsg);
+}
+});
+}
+
+function loadData(dataset, page) {
+if (page < 1) page = 1;
+const tbodyId = `#${dataset}-data-tbody`;
+const paginationContainerId = `#${dataset}-pagination-container`;
+const dataContainerId = `#${dataset}-data-container`;
+const refreshButton = $(`.refresh-button[data-source='${dataset}']`);
+const statusSpan = $(`#${dataset}-refresh-status`);
+const colspan = dataset === 'cdc' ? 3 : 7;
+console.log(`Loading data for ${dataset}, page ${page}`);
+$(dataContainerId).find('.initial-loading-info, .error').remove();
+$(dataContainerId).find('table').show();
+$(tbodyId).html(`<tr><td colspan="${colspan}" style="text-align:center;"><div class="loading"><div class="loading-spinner"></div></div> Loading page ${page}...</td></tr>`);
+$(paginationContainerId).empty().hide();
+fetchData(dataset, page,
+function successCallback(data) {
+console.log(`Successfully fetched data for ${dataset} page ${page}, updating display.`);
+updateDisplayForDataset(dataset, data);
+if (dataset === 'cdc') { cdcCurrentPage = data.current_page || 1; }
+else if (dataset === 'who') { whoCurrentPage = data.current_page || 1; }
+refreshButton.prop('disabled', false);
+},
+function errorCallback(errorMsg) {
+console.error(`Error loading data for ${dataset} page ${page}: ${errorMsg}`);
+$(tbodyId).html(`<tr><td colspan="${colspan}" style="text-align:center; color:red;">Error loading data: ${errorMsg}. Please try again.</td></tr>`);
+refreshButton.prop('disabled', false);
+if (statusSpan.length > 0) {
+statusSpan.text('Error loading data.').css('color', 'red');
+setTimeout(() => { statusSpan.text(''); }, 5000);
+}
+}
+);
+}
+
+// Polling logic for WHO
+function pollForUpdates(dataSource, initialTriggerTime) {
+if (dataSource !== 'who') return;
+if (pollingIntervals[dataSource]) {
+clearInterval(pollingIntervals[dataSource]);
+console.log(`Cleared existing WHO polling interval.`);
+}
+const pollingStartTime = Date.now();
+const statusSpan = $(`#${dataSource}-refresh-status`);
+const refreshButton = $(`.refresh-button[data-source='${dataSource}']`);
+const currentPage = whoCurrentPage;
+console.log(`Starting WHO polling for page ${currentPage}. Initial trigger time: ${initialTriggerTime}`);
+statusSpan.text('Polling for WHO updates...').css('color', '');
+setTimeout(() => {
+const checkForNewData = function() {
+console.log(`Polling check for ${dataSource} (WHO)...`);
+if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
+clearInterval(pollingIntervals[dataSource]);
+refreshButton.prop('disabled', false);
+statusSpan.text('Refresh timed out. Try again.').css('color', 'red');
+setTimeout(() => { statusSpan.text(''); }, 5000);
+console.log("WHO polling timed out.");
+return;
+}
+$.ajax({
+url: '{% url "live_data_page" %}',
+data: {
+selected_state: currentFilters.selected_state,
+selected_country: currentFilters.selected_country,
+selected_region: currentFilters.selected_region,
+target: dataSource,
+global_page: currentPage
+},
+method: 'GET',
+headers: { 'X-Requested-With': 'XMLHttpRequest' },
+dataType: 'json',
+success: function(response) {
+console.log("WHO Polling check response:", response);
+if (response.global_data && response.global_data.object_list) {
+const newSignature = getDataSignature(dataSource, response.global_data.object_list);
+console.log("WHO new signature:", newSignature, "Old signature:", lastRenderedSignatures[dataSource]);
+if (newSignature !== lastRenderedSignatures[dataSource]) {
+console.log("WHO signature changed. Updating display.");
+clearInterval(pollingIntervals[dataSource]);
+statusSpan.text('WHO Data refreshed!').css('color', 'green');
+updateDisplayForDataset(dataSource, response.global_data);
+refreshButton.prop('disabled', false);
+} else {
+statusSpan.text('Waiting for updated WHO data...');
+console.log("WHO signature same. Continue polling.");
+}
+} else {
+console.warn("WHO polling response missing expected data structure:", response);
+statusSpan.text('Polling: Waiting for WHO data...');
+}
+},
+error: function(xhr, status, error) {
+console.error(`Error checking for ${dataSource} (WHO) updates:`, status, error, xhr.responseText);
+statusSpan.text(`Error checking: ${status}`).css('color', 'orange');
+if (xhr.status >= 400) {
+clearInterval(pollingIntervals[dataSource]);
+statusSpan.text(`Error ${xhr.status}. Stopping poll.`).css('color', 'red');
+refreshButton.prop('disabled', false);
+}
+}
+});
+};
+checkForNewData();
+pollingIntervals[dataSource] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
+console.log(`Set WHO polling interval ID: ${pollingIntervals[dataSource]}`);
+}, MIN_DELAY_BEFORE_POLL_MS);
+}
+
+// CDC polling function with Signature Check & Full DOM Rebuild
+function pollForCDCUpdates(stateValue, stateTitle) {
+if (pollingIntervals['cdc']) {
+clearInterval(pollingIntervals['cdc']);
+console.log(`Cleared existing CDC polling interval.`);
+}
+let initialSignature = lastRenderedSignatures['cdc'];
+console.log("Starting CDC poll. Initial Signature for " + stateTitle + ":", initialSignature);
+
+// 1. Replace the table container content with the loading info box
+$('#cdc-data-container').html(`
+<div class="info initial-loading-info">
+<p>Fetching updated COVID-19 data for "${stateTitle}"...</p>
+<div class="loading"><div class="loading-spinner"></div></div>
+<p>This section will update automatically.</p>
+<button type="button" onclick="showWaitInfo()">Why the wait?</button>
+</div>
+`);
+
+const pollingStartTime = Date.now();
+const refreshButton = $(`.refresh-button[data-source='cdc']`);
+const statusSpan = $(`#cdc-refresh-status`);
+
+const checkForNewData = function() {
+console.log(`Polling check for CDC updates for ${stateValue}...`);
+statusSpan.text('Checking for CDC updates...');
+
+if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
+clearInterval(pollingIntervals['cdc']);
+$('#cdc-data-container').html(`
+<div class="error">
+<p>Timeout while waiting for data for "${stateTitle}".</p>
+<p>Please try again later or use the Refresh button.</p>
+</div>
+`);
+refreshButton.prop('disabled', false);
+statusSpan.text('Polling timed out.').css('color', 'red');
+console.log("CDC Polling timed out.");
+return;
+}
+
+fetchData('cdc', 1, // Always poll page 1 for the latest data signature
+function successCallback(data) { // data is response.us_data
+console.log("CDC Polling check response received via fetchData:", data);
+if (data && data.object_list) {
+const newSignature = getDataSignature('cdc', data.object_list);
+console.log("New CDC data signature:", newSignature);
+
+if (newSignature !== initialSignature) {
+console.log("CDC Signature is DIFFERENT. Update display.");
+clearInterval(pollingIntervals['cdc']);
+statusSpan.text('CDC Data refreshed!').css('color', 'green');
+
+cdcCurrentPage = data.current_page || 1;
+
+// RECONSTRUCT THE TABLE AND PAGINATION STRUCTURE
+const newTableContent = `
+<table id="cdc-data-table">
+<thead><tr><th>State</th><th>Date</th><th>Deaths (Total)</th></tr></thead>
+<tbody id="cdc-data-tbody">
+${renderTableRows('cdc', data.object_list)}
+</tbody>
+</table>
+<div class="pagination" id="cdc-pagination-container"></div>
+`;
+$('#cdc-data-container').html(newTableContent);
+console.log("Replaced #cdc-data-container with new table structure.");
+console.log("Content of #cdc-data-tbody after inserting newTableContent:", $('#cdc-data-tbody').html());
 
 
-    // ***** CORRECTED: Function to dynamically build SLIDING WINDOW pagination controls *****
-    function updatePaginationControls(dataset, paginationData) {
-        let containerId = '';
-        // --- Basic Validation ---
-        if (!paginationData || typeof paginationData.current_page === 'undefined' || typeof paginationData.total_pages === 'undefined') {
-            console.warn(`Pagination data incomplete for ${dataset}. Controls not updated.`);
-            if(dataset === 'cdc') $('#cdc-pagination-container').empty();
-            if(dataset === 'who') $('#who-pagination-container').empty();
-            return;
-        }
-        // --- Assign Variables ---
-        let currentPage = paginationData.current_page;
-        let totalPages = paginationData.total_pages;
-        let hasPrevious = paginationData.has_previous === true;
-        let hasNext = paginationData.has_next === true;
-        let previousPageNumber = paginationData.previous_page_number;
-        let nextPageNumber = paginationData.next_page_number;
-
-        // --- Determine Container and Sync JS Variable ---
-        if (dataset === 'cdc') {
-            containerId = '#cdc-pagination-container'; cdcCurrentPage = currentPage;
-        } else if (dataset === 'who') {
-            containerId = '#who-pagination-container'; whoCurrentPage = currentPage;
-        } else { console.error("Unknown dataset for updatePaginationControls:", dataset); return; }
-
-        const container = $(containerId);
-        container.empty(); // Clear previous buttons
-
-        // --- Build Controls (only if more than one page) ---
-        if (totalPages && totalPages > 1) {
-
-            // First/Previous Buttons - Render only if applicable
-            if (hasPrevious) {
-                container.append(`<button type="button" onclick="setPage('${dataset}', 1)">First</button>`);
-                let prevNum = previousPageNumber !== undefined ? previousPageNumber : (currentPage > 1 ? currentPage - 1 : 1);
-                container.append(`<button type="button" onclick="setPage('${dataset}', ${prevNum})">← Previous</button>`);
-            }
-
-            // ***** START: Sliding Window Page Number Logic *****
-            const windowSize = 5; // Total number of page links to show
-            const pagesToShowBeforeAndAfter = Math.floor(windowSize / 2); // How many pages before/after current (e.g., 2 for windowSize=5)
-
-            // Calculate initial window boundaries
-            let startPage = Math.max(1, currentPage - pagesToShowBeforeAndAfter);
-            let endPage = Math.min(totalPages, currentPage + pagesToShowBeforeAndAfter);
-
-            // Adjust window if it's near the edges to maintain the desired size
-            let pagesInWindow = endPage - startPage + 1;
-            if (pagesInWindow < windowSize) {
-                if (startPage === 1) {
-                    // Window is hitting the left edge, extend to the right if possible
-                    endPage = Math.min(totalPages, startPage + windowSize - 1);
-                } else if (endPage === totalPages) {
-                    // Window is hitting the right edge, extend to the left if possible
-                    startPage = Math.max(1, endPage - windowSize + 1);
-                }
-            }
-             // Final check on boundaries (can happen if totalPages < windowSize)
-             startPage = Math.max(1, startPage);
-             endPage = Math.min(totalPages, endPage);
+// Update pagination controls manually since updateDisplayForDataset has it commented out.
+// Uncomment it there if keeping this structure long-term.
+updatePaginationControls('cdc', data);
+console.log("Called updatePaginationControls for CDC after DOM rebuild.");
 
 
-            // Generate page number buttons within the calculated window
-            for (let i = startPage; i <= endPage; i++) {
-                if (i === currentPage) {
-                    container.append(`<button type="button" class="active">${i}</button>`);
-                } else {
-                    container.append(`<button type="button" onclick="setPage('${dataset}', ${i})">${i}</button>`);
-                }
-            }
-            // ***** END: Sliding Window Page Number Logic *****
+lastRenderedSignatures['cdc'] = newSignature;
+refreshButton.prop('disabled', false);
+} else {
+console.log("CDC Signature is the SAME. Continue polling.");
+statusSpan.text('Waiting for updated CDC data...');
+}
+} else if (data && data.cdc_task_error) { // Assuming backend might pass cdc_task_error in us_data
+const errorMsg = data.cdc_task_error;
+console.log("Polling response indicates CDC task error:", errorMsg);
+clearInterval(pollingIntervals['cdc']);
+statusSpan.text(`Error: ${errorMsg}`).css('color', 'red');
+$('#cdc-data-container').html(`
+<div class="error">
+<p>Error fetching data for "${stateTitle}": ${errorMsg}</p>
+<p>Please try again later or use the Refresh button.</p>
+</div>
+`);
+refreshButton.prop('disabled', false);
+} else {
+console.log("CDC Data not ready or payload missing/empty. Continue polling.");
+statusSpan.text('Waiting for CDC data...');
+}
+},
+function errorCallback(errorMsg) {
+console.error(`Error during CDC polling check:`, errorMsg);
+statusSpan.text(`Polling Error: ${errorMsg}`).css('color', 'orange');
+}
+);
+};
+setTimeout(() => {
+checkForNewData();
+pollingIntervals['cdc'] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
+console.log(`Set CDC polling interval ID: ${pollingIntervals['cdc']}`);
+}, MIN_DELAY_BEFORE_POLL_MS);
+}
 
+// Event Handlers
+$(document).ready(function() {
+console.log("Document ready. Initializing.");
+// Initialize signatures
+{% if us_data and us_data.object_list %}
+try {
+const initialCDCData = [
+{% for entry in us_data %}
+{
+state: "{{ entry.state|escapejs }}",
+date: "{{ entry.date|date:'Y-m-d'|escapejs }}",
+deaths_total: {% if entry.deaths_total == 0 %}0{% elif entry.deaths_total %}{{ entry.deaths_total }}{% else %}null{% endif %}
+}{% if not forloop.last %},{% endif %}
+{% endfor %}
+];
+if (initialCDCData.length > 0) { // Only set if data is actually there
+lastRenderedSignatures.cdc = getDataSignature('cdc', initialCDCData);
+console.log("Initialized CDC Signature from template:", lastRenderedSignatures.cdc);
+} else {
+console.log("Initial CDC data object_list is empty. Signature not set from template.");
+}
+} catch(e) {
+console.error("Error initializing CDC signature from template:", e);
+}
+{% else %}
+console.log("No initial us_data or object_list in template to create CDC signature.");
+{% endif %}
 
-            // Next/Last Buttons - Render only if applicable
-            if (hasNext) {
-                let nextNum = nextPageNumber !== undefined ? nextPageNumber : (currentPage < totalPages ? currentPage + 1 : totalPages);
-                container.append(`<button type="button" onclick="setPage('${dataset}', ${nextNum})">Next →</button>`);
-                container.append(`<button type="button" onclick="setPage('${dataset}', ${totalPages})">Last</button>`);
-            }
-        } // End if totalPages > 1
-    }
+{% if global_data and global_data.object_list %}
+try {
+const initialWHOData = [
+{% for entry in global_data %}
+{
+country: "{{ entry.country|escapejs }}",
+date_reported: "{{ entry.date_reported|date:'Y-m-d'|escapejs }}",
+cumulative_cases: {% if entry.cumulative_cases %}{{ entry.cumulative_cases }}{% else %}null{% endif %},
+cumulative_deaths: {% if entry.cumulative_deaths %}{{ entry.cumulative_deaths }}{% else %}null{% endif %}
+}{% if not forloop.last %},{% endif %}
+{% endfor %}
+];
+if (initialWHOData.length > 0) {
+lastRenderedSignatures.who = getDataSignature('who', initialWHOData);
+console.log("Initialized WHO Signature from template:", lastRenderedSignatures.who);
+} else {
+console.log("Initial WHO data object_list is empty. Signature not set from template.");
+}
+} catch(e) {
+console.error("Error initializing WHO signature from template:", e);
+}
+{% else %}
+console.log("No initial global_data or object_list in template to create WHO signature.");
+{% endif %}
 
+// Initialize pagination
+if ($('#cdc-pagination-container').length) {
+{% if us_data %}
+console.log("Initializing CDC pagination from template data.");
+updatePaginationControls('cdc', {
+current_page: {{ us_data.number|default:"1" }},
+total_pages: {{ us_data.paginator.num_pages|default:"1" }},
+has_previous: {{ us_data.has_previous|yesno:"true,false" }},
+has_next: {{ us_data.has_next|yesno:"true,false" }},
+previous_page_number: {% if us_data.has_previous %}{{ us_data.previous_page_number }}{% else %}null{% endif %},
+next_page_number: {% if us_data.has_next %}{{ us_data.next_page_number }}{% else %}null{% endif %}
+});
+{% else %}
+console.log("No initial CDC data in template for pagination.");
+// If cdc-data-container is showing the initial loading message, keep pagination hidden
+if (!$('#cdc-data-container .initial-loading-info').length) {
+$('#cdc-pagination-container').hide();
+}
+{% endif %}
+}
+if ($('#who-pagination-container').length) {
+{% if global_data %}
+console.log("Initializing WHO pagination from template data.");
+updatePaginationControls('who', {
+current_page: {{ global_data.number|default:"1" }},
+total_pages: {{ global_data.paginator.num_pages|default:"1" }},
+has_previous: {{ global_data.has_previous|yesno:"true,false" }},
+has_next: {{ global_data.has_next|yesno:"true,false" }},
+previous_page_number: {% if global_data.has_previous %}{{ global_data.previous_page_number }}{% else %}null{% endif %},
+next_page_number: {% if global_data.has_next %}{{ global_data.next_page_number }}{% else %}null{% endif %}
+});
+{% else %}
+console.log("No initial WHO data in template for pagination.");
+if (!$('#who-data-container .initial-loading-info').length) {
+$('#who-pagination-container').hide();
+}
+{% endif %}
+}
 
-    // Function to load data via AJAX (Unchanged - Ensure server response structure is correct)
-    function loadData(url, dataToSend, targetDataset) {
-      console.log(`AJAX Request for ${targetDataset}: URL=${url}, Data=`, dataToSend);
-      let loadingRowHtml = '';
-      let colspan = targetDataset === 'cdc' ? 3 : 7;
-      let tbodyId = `#${targetDataset}-data-tbody`;
-      let paginationContainerId = `#${targetDataset}-pagination-container`;
+// Refresh button click handler
+$('.refresh-button').on('click', function() {
+const dataSource = $(this).data('source');
+const refreshButton = $(this);
+const statusSpan = $(`#${dataSource}-refresh-status`);
+console.log(`Refresh button clicked for: ${dataSource}`);
+refreshButton.prop('disabled', true);
+statusSpan.text('Initiating refresh...').css('color', '');
+if (dataSource === 'cdc') {
+const stateValue = $('#state').val() || 'united states';
+const stateTitle = $('#state option:selected').text();
+console.log(`Triggering CDC refresh for state: ${stateValue}`);
+$.ajax({
+url: '{% url "trigger_data_refresh" %}',
+method: 'POST',
+data: {
+source: dataSource,
+selected_state: stateValue,
+},
+dataType: 'json',
+success: function(response) {
+console.log(`CDC refresh task triggered successfully for ${stateValue}:`, response.message);
+statusSpan.text('Refresh started. Checking for updates...');
+pollForCDCUpdates(stateValue, stateTitle);
+},
+error: function(xhr, status, error) {
+console.error(`Error triggering CDC refresh task for ${stateValue}:`, status, error, xhr.responseText);
+let errorMsg = `Error starting refresh: ${status}`;
+try {
+const respJson = JSON.parse(xhr.responseText);
+if(respJson.message) { errorMsg = `Error: ${respJson.message}`; }
+else if(respJson.error) { errorMsg = `Error: ${respJson.error}`; }
+} catch(e) { /* ignore json parse error */ }
+refreshButton.prop('disabled', false);
+statusSpan.text(errorMsg).css('color', 'red');
+$('#cdc-data-container').html(`<div class="error"><p>${errorMsg}</p><p>Please try again later.</p></div>`);
+}
+});
+} else { // dataSource === 'who'
+console.log(`Triggering WHO refresh`);
+statusSpan.text('Initiating WHO refresh...');
+$.ajax({
+url: '{% url "trigger_data_refresh" %}',
+method: 'POST',
+data: {
+source: dataSource,
+selected_state: '',
+},
+dataType: 'json',
+success: function(response) {
+console.log(`WHO refresh task triggered successfully:`, response.message);
+statusSpan.text('WHO Refresh started. Polling for updates...');
+pollForUpdates(dataSource, Date.now());
+},
+error: function(xhr, status, error) {
+console.error(`Error triggering WHO refresh task:`, status, error, xhr.responseText);
+let errorMsg = `Error starting WHO refresh: ${status}`;
+try {
+const respJson = JSON.parse(xhr.responseText);
+if(respJson.message) { errorMsg = `Error: ${respJson.message}`; }
+else if(respJson.error) { errorMsg = `Error: ${respJson.error}`; }
+} catch(e) { /* ignore json parse error */ }
+refreshButton.prop('disabled', false);
+statusSpan.text(errorMsg).css('color', 'red');
+setTimeout(() => { statusSpan.text(''); }, 5000);
+}
+});
+}
+});
 
-      loadingRowHtml = `<tr><td colspan="${colspan}" style="text-align:center;"><div class="loading"><div class="loading-spinner"></div></div> Fetching page data...</td></tr>`;
-      $(tbodyId).html(loadingRowHtml);
-      $(paginationContainerId).empty();
-
-      $.ajax({
-        url: url, data: dataToSend, method: 'GET', headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        success: function(response) {
-          console.log(`AJAX response received for target ${targetDataset}:`, response);
-          let dataKey = targetDataset === 'cdc' ? 'us_data' : 'global_data';
-          let tableHtml = '';
-
-          if (response && response[dataKey] && response[dataKey].object_list) {
-              const dataSection = $(`#${targetDataset}-dashboard`);
-              dataSection.find('.info').remove(); dataSection.find('table').show();
-
-              if (response[dataKey].object_list.length > 0) {
-                 response[dataKey].object_list.forEach(entry => {
-                    if (targetDataset === 'cdc') {
-                        let formattedDate = 'N/A'; if (entry.date) { try { const dp = entry.date.split('-'); const dO = new Date(Date.UTC(dp[0], dp[1]-1, dp[2])); formattedDate = dO.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric', timeZone:'UTC'}); } catch(e){ formattedDate=entry.date;}} const sN = entry.state ? entry.state.charAt(0).toUpperCase() + entry.state.slice(1) : 'N/A'; const d = entry.deaths_total === 0 ? '0' : (entry.deaths_total != null ? entry.deaths_total : 'N/A'); tableHtml += `<tr><td>${sN}</td><td>${formattedDate}</td><td>${d}</td></tr>`;
-                    } else {
-                        let fDate = 'N/A'; if (entry.date_reported) { try { const dp=entry.date_reported.split('-'); const dO=new Date(Date.UTC(dp[0], dp[1]-1, dp[2])); fDate=dO.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric', timeZone:'UTC'}); } catch(e){ fDate=entry.date_reported;}} tableHtml += `<tr><td>${entry.country||'N/A'}</td><td>${entry.who_region||'N/A'}</td><td>${fDate}</td><td>${entry.cumulative_cases!=null?entry.cumulative_cases:'0'}</td><td>${entry.new_cases!=null?entry.new_cases:'0'}</td><td>${entry.cumulative_deaths!=null?entry.cumulative_deaths:'0'}</td><td>${entry.new_deaths!=null?entry.new_deaths:'0'}</td></tr>`;
-                    }
-                 });
-              } else { tableHtml = `<tr><td colspan="${colspan}" style="text-align:center;">No ${targetDataset.toUpperCase()} data matches your filter for this page.</td></tr>`; }
-              $(tbodyId).html(tableHtml);
-              // --- UPDATE PAGINATION USING THE NEW FUNCTION ---
-              updatePaginationControls(targetDataset, response[dataKey]);
-          } else {
-               console.warn(`AJAX response for ${targetDataset} missing expected data structure.`);
-               tableHtml = `<tr><td colspan="${colspan}" style="text-align:center;">No data returned or data structure mismatch for ${targetDataset.toUpperCase()}.</td></tr>`;
-               $(tbodyId).html(tableHtml); $(paginationContainerId).empty();
-          }
-        },
-        error: function(xhr, status, error) {
-          console.error(`AJAX error for ${targetDataset}:`, status, error, xhr.responseText);
-           let errorHtml = `<tr><td colspan="${colspan}" style="text-align:center;">Error updating ${targetDataset.toUpperCase()} data via AJAX. Please try again.</td></tr>`;
-           $(tbodyId).html(errorHtml); $(paginationContainerId).empty();
-        }
-      });
-    }
-  </script>
-  {# ***** END JAVASCRIPT SECTION ***** #}
-
+// Initial polling if CDC data is missing
+{% if not cdc_data_exists and not cdc_task_error %}
+console.log("Initial CDC data missing. Starting automatic polling.");
+const initialStateValue = "{{ selected_state|escapejs }}";
+const initialStateTitle = $("#state option[value='" + initialStateValue + "']").text() || initialStateValue.charAt(0).toUpperCase() + initialStateValue.slice(1);
+pollForCDCUpdates(initialStateValue, initialStateTitle);
+{% endif %}
+console.log("Initialization complete.");
+});
+</script>
 </body>
 </html>

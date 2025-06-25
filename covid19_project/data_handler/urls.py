@@ -13,6 +13,8 @@ urlpatterns = [
     path('api/get_states/', views.get_states_api, name='get_states_api'),
     path('api/get_counties/', views.get_counties_api, name='get_counties_api'),
     path('api/data/', get_paginated_data, name='get_paginated_data'),
+    path('trigger_data_refresh/', views.trigger_data_refresh, name='trigger_data_refresh'),
+
 ]
 
 

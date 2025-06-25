@@ -15,7 +15,6 @@ import os
 import logging
 from celery.schedules import crontab
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data'
 
@@ -180,21 +179,21 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            # Added {name} so you can see which logger is emitting each message.
+            # Added {name} to see which logger is emitting each message.
             'format': '[{asctime}] {levelname} {name}: {message}',
             'style': '{',
         },
     },
     'handlers': {
         'console': {
-            # Keep the console handler at DEBUG for your own code.
+            # Keep the console handler at DEBUG 
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
         },
     },
     'loggers': {
-        # The root logger will catch everything from your project.
+        # The root logger will catch everything 
         '': {
             'handlers': ['console'],
             'level': 'DEBUG',
@@ -212,13 +211,13 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        # Also, silence excessive logs coming from the remote connection in WebDriver.
+        # Silence excessive logs coming from the remote connection in WebDriver.
         'selenium.webdriver.remote.remote_connection': {
             'handlers': ['console'],
             'level': 'WARNING',
             'propagate': False,
         },
-        # If you have other third-party loggers that are noisy (like 'requests'),
-        # you can add them here similarly.
+        # If any other third-party loggers are noisy (like 'requests'),
+        # can add them here similarly.
     },
 }
