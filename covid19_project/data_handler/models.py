@@ -1,7 +1,9 @@
 from django.db import models
 
 class CovidCountyData(models.Model):
-    date = models.DateField(primary_key=True)
+    # Changed to use Django's 'id' AutoField as the primary key instead of 'date' for (county,state,us) models
+    # because 'date' alone is not unique across all records
+    date = models.DateField()
     county = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
     fips = models.IntegerField(null=True, blank=True)
@@ -16,7 +18,7 @@ class CovidCountyData(models.Model):
 
 
 class CovidStateData(models.Model):
-    date = models.DateField(primary_key=True)
+    date = models.DateField()
     state = models.CharField(max_length=100)
     fips = models.IntegerField()
     cases = models.IntegerField()
@@ -30,7 +32,7 @@ class CovidStateData(models.Model):
 
 
 class CovidUSData(models.Model):
-    date = models.DateField(primary_key=True)
+    date = models.DateField()
     cases = models.IntegerField()
     deaths = models.IntegerField()
 
