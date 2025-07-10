@@ -521,77 +521,79 @@ setTimeout(() => { statusSpan.text(''); }, 5000);
 );
 }
 
-// Polling logic for WHO
+// Polling logic for WHO - CORRECTED VERSION
 function pollForUpdates(dataSource, initialTriggerTime) {
-if (dataSource !== 'who') return;
-if (pollingIntervals[dataSource]) {
-clearInterval(pollingIntervals[dataSource]);
-console.log(`Cleared existing WHO polling interval.`);
-}
-const pollingStartTime = Date.now();
-const statusSpan = $(`#${dataSource}-refresh-status`);
-const refreshButton = $(`.refresh-button[data-source='${dataSource}']`);
-const currentPage = whoCurrentPage;
-console.log(`Starting WHO polling for page ${currentPage}. Initial trigger time: ${initialTriggerTime}`);
-statusSpan.text('Polling for WHO updates...').css('color', '');
-setTimeout(() => {
-const checkForNewData = function() {
-console.log(`Polling check for ${dataSource} (WHO)...`);
-if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
-clearInterval(pollingIntervals[dataSource]);
-refreshButton.prop('disabled', false);
-statusSpan.text('Refresh timed out. Try again.').css('color', 'red');
-setTimeout(() => { statusSpan.text(''); }, 5000);
-console.log("WHO polling timed out.");
-return;
-}
-$.ajax({
-url: '{% url "live_data_page" %}',
-data: {
-selected_state: currentFilters.selected_state,
-selected_country: currentFilters.selected_country,
-selected_region: currentFilters.selected_region,
-target: dataSource,
-global_page: currentPage
-},
-method: 'GET',
-headers: { 'X-Requested-With': 'XMLHttpRequest' },
-dataType: 'json',
-success: function(response) {
-console.log("WHO Polling check response:", response);
-if (response.global_data && response.global_data.object_list) {
-const newSignature = getDataSignature(dataSource, response.global_data.object_list);
-console.log("WHO new signature:", newSignature, "Old signature:", lastRenderedSignatures[dataSource]);
-if (newSignature !== lastRenderedSignatures[dataSource]) {
-console.log("WHO signature changed. Updating display.");
-clearInterval(pollingIntervals[dataSource]);
-statusSpan.text('WHO Data refreshed!').css('color', 'green');
-updateDisplayForDataset(dataSource, response.global_data);
-refreshButton.prop('disabled', false);
-} else {
-statusSpan.text('Waiting for updated WHO data...');
-console.log("WHO signature same. Continue polling.");
-}
-} else {
-console.warn("WHO polling response missing expected data structure:", response);
-statusSpan.text('Polling: Waiting for WHO data...');
-}
-},
-error: function(xhr, status, error) {
-console.error(`Error checking for ${dataSource} (WHO) updates:`, status, error, xhr.responseText);
-statusSpan.text(`Error checking: ${status}`).css('color', 'orange');
-if (xhr.status >= 400) {
-clearInterval(pollingIntervals[dataSource]);
-statusSpan.text(`Error ${xhr.status}. Stopping poll.`).css('color', 'red');
-refreshButton.prop('disabled', false);
-}
-}
-});
-};
-checkForNewData();
-pollingIntervals[dataSource] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
-console.log(`Set WHO polling interval ID: ${pollingIntervals[dataSource]}`);
-}, MIN_DELAY_BEFORE_POLL_MS);
+    // This function is now specifically for WHO
+    if (dataSource !== 'who') return;
+    
+    if (pollingIntervals[dataSource]) {
+        clearInterval(pollingIntervals[dataSource]);
+    }
+
+    const dataContainer = $('#who-data-container');
+    const statusSpan = $('#who-refresh-status');
+    const refreshButton = $(`.refresh-button[data-source='who']`);
+
+    // 1. Immediately replace the UI with a loading message
+    dataContainer.html(`
+        <div class="info initial-loading-info">
+            <p>Fetching updated Global COVID-19 data...</p>
+            <div class="loading"><div class="loading-spinner"></div></div>
+            <p>This section will update automatically.</p>
+        </div>
+    `);
+
+    const pollingStartTime = Date.now();
+
+    const checkForNewData = function() {
+        if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
+            clearInterval(pollingIntervals[dataSource]);
+            dataContainer.html(`<div class="error"><p>Timeout while waiting for WHO data.</p><p>Please try again later.</p></div>`);
+            refreshButton.prop('disabled', false);
+            return;
+        }
+
+        // 2. Fetch page 1 of the data
+        fetchData('who', 1,
+            function successCallback(data) {
+                // 3. On the first successful poll with data, stop and render.
+                if (data && data.object_list && data.object_list.length > 0) {
+                    
+                    console.log("WHO Poll successful. Rebuilding display now.");
+                    clearInterval(pollingIntervals[dataSource]);
+                    statusSpan.text('WHO Data refreshed!').css('color', 'green');
+                    whoCurrentPage = data.current_page || 1;
+
+                    // Reconstruct the entire table and pagination structure
+                    const newTableContent = `
+                        <table id="who-data-table">
+                            <thead><tr><th>Country</th><th>WHO Region</th><th>Date Reported</th><th>Cases (Total)</th><th>Cases (New)</th><th>Deaths (Total)</th><th>Deaths (New)</th></tr></thead>
+                            <tbody id="who-data-tbody">
+                                ${renderTableRows('who', data.object_list)}
+                            </tbody>
+                        </table>
+                        <div class="pagination" id="who-pagination-container"></div>
+                    `;
+                    dataContainer.html(newTableContent);
+                    
+                    updatePaginationControls('who', data);
+                    lastRenderedSignatures['who'] = getDataSignature('who', data.object_list);
+                    refreshButton.prop('disabled', false);
+                } else {
+                    statusSpan.text('Waiting for WHO data...');
+                }
+            },
+            function errorCallback(errorMsg) {
+                statusSpan.text(`Polling Error: ${errorMsg}`).css('color', 'orange');
+                console.error(`Error during WHO polling check:`, errorMsg);
+            }
+        );
+    };
+
+    setTimeout(() => {
+        checkForNewData();
+        pollingIntervals[dataSource] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
+    }, MIN_DELAY_BEFORE_POLL_MS);
 }
 
 // CDC polling function with Signature Check & Full DOM Rebuild
