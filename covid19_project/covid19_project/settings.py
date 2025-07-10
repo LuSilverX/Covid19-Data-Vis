@@ -11,12 +11,10 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
-import os
-import logging
 from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / 'data'
+CDC_DOWNLOAD_DIR = BASE_DIR / 'cdc_downloads'
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_TIMEZONE = 'UTC'
@@ -34,7 +32,6 @@ SECRET_KEY = 'SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")'
 DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 # Application definition
 
@@ -128,21 +125,15 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),
         # Task will need a 'selected_state'. So made a way to tell it to update ALL states.
         # Passing special value 'all_states'.
-        # Modified the task slightly to handle this.
         'args': ('all_states', ''), # Passing 'all_states' and an empty string for selected_date
     },
     
-    'fetch-who-data-daily': {
+    'fetch-who-data-weekly': {
         'task': 'data_handler.tasks.fetch_who_data',    
         'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),          
         'args': (),                                     
     },
 }
-
-STATICFILES_FINDERS = [
-    'django.contrib.staticfiles.finders.FileSystemFinder',
-    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
-]
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
@@ -161,18 +152,11 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-#STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_collected')
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-#logging.basicConfig(level=logging.INFO)
-#logger = logging.getLogger(__name__)
-
-#logger.info(f"BASE_DIR: {BASE_DIR}")
-#logger.info(f"DATA_DIR: {DATA_DIR}")
 
 LOGGING = {
     'version': 1,
@@ -197,7 +181,6 @@ LOGGING = {
         '': {
             'handlers': ['console'],
             'level': 'DEBUG',
-            'propagate': True,
         },
         # Suppress third-party verbose debug messages from Selenium.
         'selenium': {

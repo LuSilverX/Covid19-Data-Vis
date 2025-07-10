@@ -1,6 +1,7 @@
 import os
 import time
 import csv
+from django.conf import settings
 import logging
 from io import StringIO
 from datetime import datetime
@@ -27,9 +28,8 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     state_name = state_key_to_process.replace("united states", "United States").title()
     logger.info(f"--- Processing CDC state: {state_key_to_process} ---")
 
-    # Setting up download directory (later might consider making path absolute/configurable)
-    # Using os.getcwd() which might be the project root or app root depending on execution contextttt
-    download_dir = os.path.join(os.getcwd(), "cdc_downloads")
+    # Setting up download directory 
+    download_dir = settings.CDC_DOWNLOAD_DIR
     logger.warning(f"CDC Download directory: {download_dir}")
     os.makedirs(download_dir, exist_ok=True)
 
@@ -54,22 +54,6 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         driver.get(url)
         WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
 
-        # Selenium interactions
-        # (Optional view switch - may remove this if problematic)
-        #try:
-            #logger.info("Looking for 'Weekly Deaths' dropdown...")
-            #weekly_deaths_dropdown = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Weekly Deaths')]")))
-            #logger.info("Found 'Weekly Deaths' dropdown. Clicking...")
-            #weekly_deaths_dropdown.click()
-            #logger.info("Looking for 'Cumulative Deaths' option...")
-            #cumulative_option = WebDriverWait(driver, 20).until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Cumulative Deaths')]")))
-            #logger.info("Found 'Cumulative Deaths'. Clicking...")
-            #cumulative_option.click()
-            #time.sleep(2)
-        #except Exception as e:
-            #logger.warning(f"Could not switch view for {state_key_to_process} (might be okay): {e}")
-            #logger.info("Continuing...")
-
         logger.info("Looking for 'Data Table for Cumulative Deaths' link...")
         data_table_link = WebDriverWait(driver, 30).until(EC.element_to_be_clickable((By.XPATH, f"//*[contains(text(), 'Data Table for Cumulative Deaths') and contains(text(), '{state_name}')]")))
         logger.info("Found data table link. Scrolling and clicking...")
@@ -78,19 +62,10 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         driver.execute_script("arguments[0].click();", data_table_link)
         time.sleep(3)
 
-        # (Optional iframe switch)
-        #logger.info("Checking for Tableau iframe...")
-        #try:
-            #tableau_iframe = WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.XPATH, "//iframe[contains(@src, 'tableau')]")))
-            #logger.info("Switching to Tableau iframe.")
-            #driver.switch_to.frame(tableau_iframe)
-        #except Exception as e:
-            #logger.info(f"No Tableau iframe found or error: {e}")
-
         logger.info("Looking for 'Download Data' button...")
         time.sleep(5)
         download_button = None
-        # (Simplified download button finding - may adjust if needed)
+        # (Simplified download button finding - i may adjust if needed)
         try:
              # Trying the ID that worked before first
              download_button = WebDriverWait(driver, 45).until(EC.element_to_be_clickable((By.ID, "btnUSTrendsTableExport")))
@@ -115,7 +90,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
         driver.switch_to.default_content()
 
         logger.info("Pausing for download...")
-        time.sleep(20)
+        time.sleep(4)
 
         logger.info(f"Checking download directory: {download_dir}")
         csv_files = [os.path.join(download_dir, f) for f in os.listdir(download_dir) if f.endswith('.csv')]
@@ -210,7 +185,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
                         date=parsed_date,
                         defaults={
                             'deaths_total': deaths_total,
-                            'data_as_of': parsed_data_as_of # Assumes model allows null=True
+                            'data_as_of': parsed_data_as_of # Model allows null=True
                         }
                     )
                     rows_processed += 1
@@ -299,7 +274,7 @@ def fetch_cdc_data(self, selected_state, selected_date):
 
     if not overall_success:
         Exception(f"Task {task_id} failed to process {states_failed} CDC states.")
-        pass
+        
 
 
 # TASK for WHO Data 
@@ -389,7 +364,7 @@ def fetch_who_data(self):
                 try: cumulative_deaths = int(row.get('Cumulative_deaths') or 0)
                 except (ValueError, TypeError): pass
 
-                # Create WHOData object (using create since we deleted all)
+                # Create WHOData object (using create since i deleted all)
                 WHOData.objects.create(
                     date_reported=parsed_date,
                     country_code=country_code,
@@ -427,4 +402,3 @@ def fetch_who_data(self):
         #pass
 
     logger.info(f"!!!!!!!!!! fetch_who_data TASK FINISHED (ID: {task_id}) !!!!!!!!!!!")
-

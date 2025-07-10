@@ -1,7 +1,7 @@
 import os
 from celery import Celery
 
-# Setting the default Django settings module for the 'celery' program.
+# Setting default Django settings for Celery
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'covid19_project.settings')
 
 app = Celery('covid19_project')

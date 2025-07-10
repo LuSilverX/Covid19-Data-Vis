@@ -1,8 +1,8 @@
 from django.db import models
 
+# Changed to use Django's 'id' AutoField as the primary key instead of 'date' for (county,state,us models) models
+# because 'date' alone is not unique across all records
 class CovidCountyData(models.Model):
-    # Changed to use Django's 'id' AutoField as the primary key instead of 'date' for (county,state,us) models
-    # because 'date' alone is not unique across all records
     date = models.DateField()
     county = models.CharField(max_length=100)
     state = models.CharField(max_length=100)
@@ -49,8 +49,8 @@ class CDCData(models.Model):
     data_as_of = models.DateField(null=True, blank=True) 
 
     class Meta:
-        unique_together = ('state', 'date')  # Preventing duplicates
-        ordering = ['-date']  # Latest dates first
+        unique_together = ('state', 'date')  
+        ordering = ['-date']  
 
     def __str__(self):
         return f"{self.state} - {self.date.strftime('%Y-%m-%d') if self.date else 'No Date'}"
@@ -63,10 +63,10 @@ class WHOData(models.Model):
     date_reported = models.DateField(db_index=True)
 
     # Corresponds to 'Country_code' ('US', 'GB', etc.). Max length 2 seems safe.
-    country_code = models.CharField(max_length=10, blank=True, db_index=True) 
+    country_code = models.CharField(max_length=10, blank=True,) 
 
     # Corresponds to 'Country' ('United States of America', 'Canada', etc.). Increased max length.
-    country = models.CharField(max_length=100, db_index=True) # Add index
+    country = models.CharField(max_length=100, db_index=True)
 
     # Corresponds to 'WHO_region' ('AMRO', 'EURO', etc.). Max length 10 seems safe.
     who_region = models.CharField(max_length=10, blank=True)
@@ -88,8 +88,6 @@ class WHOData(models.Model):
         unique_together = ('date_reported', 'country_code')
         # Default ordering: Latest date first, then by country name
         ordering = ['-date_reported', 'country']
-        # Optional: i may define a specific table name if desired
-        # db_table = 'who_covid_data'
         verbose_name = "WHO COVID Data"
         verbose_name_plural = "WHO COVID Data"
 
