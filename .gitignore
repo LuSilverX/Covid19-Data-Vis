@@ -1,6 +1,11 @@
 # Ignore virtual environment
-venv/
 .DS_Store
 # Byte-compiled Python files
 *.pyc
 __pycache__/
+# Virtual env
+.venv/
+# IDE settings
+.idea/
+# Environment variables
+.env
