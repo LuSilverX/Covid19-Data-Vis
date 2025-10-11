@@ -214,6 +214,37 @@ const POLLING_INTERVAL_MS = 7000;
 const POLLING_TIMEOUT_MS = 180000;
 const MIN_DELAY_BEFORE_POLL_MS = 2000;
 
+function pollTaskStatus(taskId, dataset, onSuccess, onError) {
+    const startTime = Date.now();
+    console.log(`Starting polling for task ${taskId} on dataset ${dataset}`);
+    const interval = setInterval(() => {
+        if (Date.now() - startTime > POLLING_TIMEOUT_MS) {
+            clearInterval(interval);
+            onError('Timeout while waiting for task to complete.');
+            return;
+        }
+        console.log(`Polling task status for ${taskId}`);
+        const url = '{% url "check_task_status" task_id="TASK_ID" %}'.replace('TASK_ID', taskId);
+        console.log(`Polling URL: ${url}`);
+        $.get(url)
+            .done(response => {
+                console.log(`Task ${taskId} status:`, response);
+                if (response.status === 'SUCCESS') {
+                    clearInterval(interval);
+                    onSuccess();
+                } else if (response.status === 'FAILURE' || response.status === 'ERROR') {
+                    clearInterval(interval);
+                    onError(response.message || 'Task failed or errored.');
+                }
+            })
+            .fail((xhr, status, error) => {
+                console.error(`Error polling task ${taskId}:`, status, error, xhr.responseText);
+                clearInterval(interval);
+                onError(`Error checking task status: ${xhr.status} ${xhr.statusText}`);
+            });
+    }, POLLING_INTERVAL_MS);
+}
+
 // CSRF Setup
 function getCookie(name) {
 let cookieValue = null;
@@ -521,190 +552,6 @@ setTimeout(() => { statusSpan.text(''); }, 5000);
 );
 }
 
-// Polling logic for WHO - CORRECTED VERSION
-function pollForUpdates(dataSource, initialTriggerTime) {
-    // This function is now specifically for WHO
-    if (dataSource !== 'who') return;
-    
-    if (pollingIntervals[dataSource]) {
-        clearInterval(pollingIntervals[dataSource]);
-    }
-
-    const dataContainer = $('#who-data-container');
-    const statusSpan = $('#who-refresh-status');
-    const refreshButton = $(`.refresh-button[data-source='who']`);
-
-    // 1. Immediately replace the UI with a loading message
-    dataContainer.html(`
-        <div class="info initial-loading-info">
-            <p>Fetching updated Global COVID-19 data...</p>
-            <div class="loading"><div class="loading-spinner"></div></div>
-            <p>This section will update automatically.</p>
-        </div>
-    `);
-
-    const pollingStartTime = Date.now();
-
-    const checkForNewData = function() {
-        if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
-            clearInterval(pollingIntervals[dataSource]);
-            dataContainer.html(`<div class="error"><p>Timeout while waiting for WHO data.</p><p>Please try again later.</p></div>`);
-            refreshButton.prop('disabled', false);
-            return;
-        }
-
-        // 2. Fetch page 1 of the data
-        fetchData('who', 1,
-            function successCallback(data) {
-                // 3. On the first successful poll with data, stop and render.
-                if (data && data.object_list && data.object_list.length > 0) {
-                    
-                    console.log("WHO Poll successful. Rebuilding display now.");
-                    clearInterval(pollingIntervals[dataSource]);
-                    statusSpan.text('WHO Data refreshed!').css('color', 'green');
-                    whoCurrentPage = data.current_page || 1;
-
-                    // Reconstruct the entire table and pagination structure
-                    const newTableContent = `
-                        <table id="who-data-table">
-                            <thead><tr><th>Country</th><th>WHO Region</th><th>Date Reported</th><th>Cases (Total)</th><th>Cases (New)</th><th>Deaths (Total)</th><th>Deaths (New)</th></tr></thead>
-                            <tbody id="who-data-tbody">
-                                ${renderTableRows('who', data.object_list)}
-                            </tbody>
-                        </table>
-                        <div class="pagination" id="who-pagination-container"></div>
-                    `;
-                    dataContainer.html(newTableContent);
-                    
-                    updatePaginationControls('who', data);
-                    lastRenderedSignatures['who'] = getDataSignature('who', data.object_list);
-                    refreshButton.prop('disabled', false);
-                } else {
-                    statusSpan.text('Waiting for WHO data...');
-                }
-            },
-            function errorCallback(errorMsg) {
-                statusSpan.text(`Polling Error: ${errorMsg}`).css('color', 'orange');
-                console.error(`Error during WHO polling check:`, errorMsg);
-            }
-        );
-    };
-
-    setTimeout(() => {
-        checkForNewData();
-        pollingIntervals[dataSource] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
-    }, MIN_DELAY_BEFORE_POLL_MS);
-}
-
-// CDC polling function with Signature Check & Full DOM Rebuild
-function pollForCDCUpdates(stateValue, stateTitle) {
-if (pollingIntervals['cdc']) {
-clearInterval(pollingIntervals['cdc']);
-console.log(`Cleared existing CDC polling interval.`);
-}
-let initialSignature = lastRenderedSignatures['cdc'];
-console.log("Starting CDC poll. Initial Signature for " + stateTitle + ":", initialSignature);
-
-// 1. Replace the table container content with the loading info box
-$('#cdc-data-container').html(`
-<div class="info initial-loading-info">
-<p>Fetching updated COVID-19 data for "${stateTitle}"...</p>
-<div class="loading"><div class="loading-spinner"></div></div>
-<p>This section will update automatically.</p>
-<button type="button" onclick="showWaitInfo()">Why the wait?</button>
-</div>
-`);
-
-const pollingStartTime = Date.now();
-const refreshButton = $(`.refresh-button[data-source='cdc']`);
-const statusSpan = $(`#cdc-refresh-status`);
-
-const checkForNewData = function() {
-console.log(`Polling check for CDC updates for ${stateValue}...`);
-statusSpan.text('Checking for CDC updates...');
-
-if (Date.now() - pollingStartTime > POLLING_TIMEOUT_MS) {
-clearInterval(pollingIntervals['cdc']);
-$('#cdc-data-container').html(`
-<div class="error">
-<p>Timeout while waiting for data for "${stateTitle}".</p>
-<p>Please try again later or use the Refresh button.</p>
-</div>
-`);
-refreshButton.prop('disabled', false);
-statusSpan.text('Polling timed out.').css('color', 'red');
-console.log("CDC Polling timed out.");
-return;
-}
-
-fetchData('cdc', 1, // Always poll page 1 for the latest data signature
-function successCallback(data) { // data is response.us_data or the whole response
-console.log("CDC Polling check response received via fetchData:", data);
-if (data && data.object_list) {
-const newSignature = getDataSignature('cdc', data.object_list);
-console.log("New CDC data signature:", newSignature);
-
-if (newSignature !== initialSignature) {
-console.log("CDC Signature is DIFFERENT. Update display.");
-clearInterval(pollingIntervals['cdc']);
-statusSpan.text('CDC Data refreshed!').css('color', 'green');
-
-cdcCurrentPage = data.current_page || 1;
-
-// RECONSTRUCT THE TABLE AND PAGINATION STRUCTURE
-const newTableContent = `
-<table id="cdc-data-table">
-<thead><tr><th>State</th><th>Date</th><th>Deaths (Total)</th></tr></thead>
-<tbody id="cdc-data-tbody">
-${renderTableRows('cdc', data.object_list)}
-</tbody>
-</table>
-<div class="pagination" id="cdc-pagination-container"></div>
-`;
-$('#cdc-data-container').html(newTableContent);
-console.log("Replaced #cdc-data-container with new table structure.");
-console.log("Content of #cdc-data-tbody after inserting newTableContent:", $('#cdc-data-tbody').html());
-
-updatePaginationControls('cdc', data);
-console.log("Called updatePaginationControls for CDC after DOM rebuild.");
-
-
-lastRenderedSignatures['cdc'] = newSignature;
-refreshButton.prop('disabled', false);
-} else {
-console.log("CDC Signature is the SAME. Continue polling.");
-statusSpan.text('Waiting for updated CDC data...');
-}
-} else if (data && data.cdc_task_error) { // Assuming backend might pass cdc_task_error in us_data
-const errorMsg = data.cdc_task_error;
-console.log("Polling response indicates CDC task error:", errorMsg);
-clearInterval(pollingIntervals['cdc']);
-statusSpan.text(`Error: ${errorMsg}`).css('color', 'red');
-$('#cdc-data-container').html(`
-<div class="error">
-<p>Error fetching data for "${stateTitle}": ${errorMsg}</p>
-<p>Please try again later or use the Refresh button.</p>
-</div>
-`);
-refreshButton.prop('disabled', false);
-} else {
-console.log("CDC Data not ready or payload missing/empty. Continue polling.");
-statusSpan.text('Waiting for CDC data...');
-}
-},
-function errorCallback(errorMsg) {
-console.error(`Error during CDC polling check:`, errorMsg);
-statusSpan.text(`Polling Error: ${errorMsg}`).css('color', 'orange');
-}
-);
-};
-setTimeout(() => {
-checkForNewData();
-pollingIntervals['cdc'] = setInterval(checkForNewData, POLLING_INTERVAL_MS);
-console.log(`Set CDC polling interval ID: ${pollingIntervals['cdc']}`);
-}, MIN_DELAY_BEFORE_POLL_MS);
-}
-
 // Event Handlers
 $(document).ready(function() {
 console.log("Document ready. Initializing.");
@@ -799,83 +646,78 @@ $('#who-pagination-container').hide();
 
 // Refresh button click handler
 $('.refresh-button').on('click', function() {
-const dataSource = $(this).data('source');
-const refreshButton = $(this);
-const statusSpan = $(`#${dataSource}-refresh-status`);
-console.log(`Refresh button clicked for: ${dataSource}`);
-refreshButton.prop('disabled', true);
-statusSpan.text('Initiating refresh...').css('color', '');
-if (dataSource === 'cdc') {
-const stateValue = $('#state').val() || 'united states';
-const stateTitle = $('#state option:selected').text();
-console.log(`Triggering CDC refresh for state: ${stateValue}`);
-$.ajax({
-url: '{% url "trigger_data_refresh" %}',
-method: 'POST',
-data: {
-source: dataSource,
-selected_state: stateValue,
-},
-dataType: 'json',
-success: function(response) {
-console.log(`CDC refresh task triggered successfully for ${stateValue}:`, response.message);
-statusSpan.text('Refresh started. Checking for updates...');
-pollForCDCUpdates(stateValue, stateTitle);
-},
-error: function(xhr, status, error) {
-console.error(`Error triggering CDC refresh task for ${stateValue}:`, status, error, xhr.responseText);
-let errorMsg = `Error starting refresh: ${status}`;
-try {
-const respJson = JSON.parse(xhr.responseText);
-if(respJson.message) { errorMsg = `Error: ${respJson.message}`; }
-else if(respJson.error) { errorMsg = `Error: ${respJson.error}`; }
-} catch(e) { /* ignore json parse error */ }
-refreshButton.prop('disabled', false);
-statusSpan.text(errorMsg).css('color', 'red');
-$('#cdc-data-container').html(`<div class="error"><p>${errorMsg}</p><p>Please try again later.</p></div>`);
-}
-});
-} else { // dataSource === 'who'
-console.log(`Triggering WHO refresh`);
-statusSpan.text('Initiating WHO refresh...');
-$.ajax({
-url: '{% url "trigger_data_refresh" %}',
-method: 'POST',
-data: {
-source: dataSource,
-selected_state: '',
-},
-dataType: 'json',
-success: function(response) {
-console.log(`WHO refresh task triggered successfully:`, response.message);
-statusSpan.text('WHO Refresh started. Polling for updates...');
-pollForUpdates(dataSource, Date.now());
-},
-error: function(xhr, status, error) {
-console.error(`Error triggering WHO refresh task:`, status, error, xhr.responseText);
-let errorMsg = `Error starting WHO refresh: ${status}`;
-try {
-const respJson = JSON.parse(xhr.responseText);
-if(respJson.message) { errorMsg = `Error: ${respJson.message}`; }
-else if(respJson.error) { errorMsg = `Error: ${respJson.error}`; }
-} catch(e) { /* ignore json parse error */ }
-refreshButton.prop('disabled', false);
-statusSpan.text(errorMsg).css('color', 'red');
-setTimeout(() => { statusSpan.text(''); }, 5000);
-}
-});
-}
+    const dataSource = $(this).data('source');
+    const refreshButton = $(this);
+    const statusSpan = $(`#${dataSource}-refresh-status`);
+    console.log(`Refresh button clicked for: ${dataSource}`);
+    refreshButton.prop('disabled', true);
+    statusSpan.text('Initiating refresh...').css('color', '');
+
+    let postData = { source: dataSource };
+    if (dataSource === 'cdc') {
+        const stateValue = $('#state').val() || 'united states';
+        postData.selected_state = stateValue;
+        console.log(`CDC POST data:`, postData); // Debug POST data
+    }
+
+    console.log(`Sending AJAX POST to: {% url "trigger_data_refresh" %}`); // Debug URL
+    $.ajax({
+        url: '{% url "trigger_data_refresh" %}',
+        method: 'POST',
+        data: postData,
+        dataType: 'json',
+        success: function(response) {
+            console.log(`AJAX success for ${dataSource}:`, response); // Debug response
+            if (response.status === 'success' && response.task_id) {
+                const taskId = response.task_id;
+                statusSpan.text('Refresh started. Checking for updates...');
+                pollTaskStatus(taskId, dataSource,
+                    () => {
+                        statusSpan.text(`${dataSource.toUpperCase()} Data refreshed!`).css('color', 'green');
+                        loadData(dataSource, 1);
+                        setTimeout(() => { statusSpan.text(''); }, 3000);
+                    },
+                    errorMsg => {
+                        statusSpan.text(`Error: ${errorMsg}`).css('color', 'red');
+                        refreshButton.prop('disabled', false);
+                        setTimeout(() => { statusSpan.text(''); }, 5000);
+                    }
+                );
+            } else {
+                const errorMsg = response.message || 'Failed to start refresh task.';
+                console.log(`AJAX success but invalid response for ${dataSource}:`, response); // Debug invalid response
+                statusSpan.text(`Error: ${errorMsg}`).css('color', 'red');
+                refreshButton.prop('disabled', false);
+                setTimeout(() => { statusSpan.text(''); }, 5000);
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error(`AJAX error for ${dataSource}:`, status, error, xhr.responseText); // Debug error
+            let errorMsg = `Error starting refresh: ${status}`;
+            try {
+                const respJson = JSON.parse(xhr.responseText);
+                if (respJson.message) errorMsg = `Error: ${respJson.message}`;
+                else if (respJson.error) errorMsg = `Error: ${respJson.error}`;
+            } catch (e) { /* Ignore parsing error */ }
+            statusSpan.text(errorMsg).css('color', 'red');
+            refreshButton.prop('disabled', false);
+            setTimeout(() => { statusSpan.text(''); }, 5000);
+        }
+    });
 });
 
-// Initial polling if CDC data is missing
-{% if not cdc_data_exists and not cdc_task_error %}
-console.log("Initial CDC data missing. Starting automatic polling.");
-const initialStateValue = "{{ selected_state|escapejs }}";
-const initialStateTitle = $("#state option[value='" + initialStateValue + "']").text() || initialStateValue.charAt(0).toUpperCase() + initialStateValue.slice(1);
-pollForCDCUpdates(initialStateValue, initialStateTitle);
-{% endif %}
+// Initial trigger if data is missing
+if (!{{ cdc_data_exists|yesno:"true,false" }}) {
+    console.log("Initial CDC data missing. Triggering refresh.");
+    $('.refresh-button[data-source="cdc"]').click();
+}
+if (!{{ who_country_list|length }}) {
+    console.log("Initial WHO data missing. Triggering refresh.");
+    $('.refresh-button[data-source="who"]').click();
+}
 console.log("Initialization complete.");
 });
+
 </script>
 </body>
 </html>

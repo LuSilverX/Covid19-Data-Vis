@@ -1,5 +1,4 @@
-import requests
-import csv
+from celery.result import AsyncResult
 from django.views.decorators.http import require_POST
 from io import StringIO
 from django.shortcuts import render
@@ -391,39 +390,26 @@ def live_data(request):
         logger.info("Rendering full HTML template for live_data.")
         return render(request, 'live_data.html', context)
 
+def check_task_status(request, task_id):
+    try:
+        result = AsyncResult(task_id)
+        return JsonResponse({'status': result.state})
+    except Exception as e:
+        return JsonResponse({'status': 'ERROR', 'message': str(e)}, status=500)
 
-@require_POST # Enforce that this endpoint only accepts POST requests.
+@require_POST 
 def trigger_data_refresh(request):
     """
     Handles AJAX POST requests to trigger Celery tasks for data fetching.
     This acts as a secure bridge between the frontend and the task queue.
     """
     source = request.POST.get('source')
-    selected_state = request.POST.get('selected_state')
-
-    logger.info(f"Data refresh POST request for source: '{source}', state: '{selected_state}'")
-
-    if source == 'cdc':
-        if not selected_state:
-            return HttpResponseBadRequest("Missing 'selected_state' parameter for CDC refresh.")
-        try:
-            # Asynchronously dispatch the Celery task.
-            fetch_cdc_data.delay(selected_state=selected_state.lower(), selected_date='')
-            logger.info(f"Successfully queued fetch_cdc_data task for state: {selected_state}")
-            return JsonResponse({'status': 'success', 'message': f'CDC data refresh initiated for "{selected_state.title()}".'})
-        except Exception as e:
-            logger.exception(f"Failed to queue fetch_cdc_data task for state: {selected_state}")
-            return JsonResponse({'status': 'error', 'message': 'Failed to queue CDC refresh task.'}, status=500)
-
-    elif source == 'who':
-        try:
-            fetch_who_data.delay()
-            logger.info("Successfully queued fetch_who_data task.")
-            return JsonResponse({'status': 'success', 'message': 'WHO data refresh initiated.'})
-        except Exception as e:
-            logger.exception("Failed to queue fetch_who_data task.")
-            return JsonResponse({'status': 'error', 'message': 'Failed to queue WHO refresh task.'}, status=500)
-
-    else:
-        logger.error(f"Invalid or missing 'source' parameter in POST: {source}")
-        return HttpResponseBadRequest("Invalid or missing 'source' parameter.")
+    if source == 'who':
+        task = fetch_who_data.delay()
+        return JsonResponse({'status': 'success', 'task_id': task.id, 'message': 'WHO data refresh started'})
+    elif source == 'cdc':
+        selected_state = request.POST.get('selected_state', 'all_states').lower()
+        # Pass None for selected_date, assuming the task can handle it
+        task = fetch_cdc_data.delay(selected_state=selected_state, selected_date=None)
+        return JsonResponse({'status': 'success', 'task_id': task.id, 'message': 'CDC data refresh started'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid source'}, status=400)

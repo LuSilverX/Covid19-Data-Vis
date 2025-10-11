@@ -286,7 +286,7 @@
         if (p.has_next) container.append(`<button onclick="setPage('${key}',${p.current_page+1})">Next →</button><button onclick="setPage('${key}',${p.total_pages})">Last</button>`);
       }
 
-      // Updates the current page for a given table key and re-triggers the data load.
+      // Updates the current page for a given table key and re triggers the data load.
       function setPage(key, page) {
         if (key==='us') usCurrentPage=page;
         if (key==='state') stateCurrentPage=page;
@@ -321,7 +321,7 @@
           return new Chart(ctx, { type:'line', data:{labels:data.labels,datasets:data.datasets}, options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{position:'top'}},scales:{y:{beginAtZero:true}},animation:{duration:400}} });
         }
 
-        // Fetch and render the national-level chart.
+        // Fetch and render the national level chart.
         fetch("{% url 'chart_data_api' %}")
           .then(r=>r.ok? r.json(): Promise.reject(r.status))
           .then(d=> usChart=renderLineChart(usCtx,usChart,d))

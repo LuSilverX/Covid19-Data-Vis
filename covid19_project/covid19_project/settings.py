@@ -9,28 +9,31 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+import os
 from pathlib import Path
 from celery.schedules import crontab
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# load .env file
+load_dotenv(BASE_DIR / ".env")
+
 CDC_DOWNLOAD_DIR = BASE_DIR / 'cdc_downloads'
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
 CELERY_TIMEZONE = 'UTC'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")'
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("DJANGO_SECRET_KEY is not set")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
+DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Application definition
@@ -89,21 +92,22 @@ CHANNEL_LAYERS = {
 }
 
 # Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+
+load_dotenv()
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'covid19_data_vis',
-        'USER': 'root',
-        'HOST': 'localhost',
-        'PORT': '3306',       # Default MySQL port
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST'),
+        'PORT': os.getenv('DB_PORT'),
     }
 }
 
 
 # Password validation
-# https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -122,7 +126,7 @@ AUTH_PASSWORD_VALIDATORS = [
 CELERY_BEAT_SCHEDULE = {
     'fetch-cdc-data-weekly': {
         'task': 'data_handler.tasks.fetch_cdc_data',
-        'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),
+        'schedule': crontab(hour=0, minute=11, day_of_week='saturday'),
         # Task will need a 'selected_state'. So made a way to tell it to update ALL states.
         # Passing special value 'all_states'.
         'args': ('all_states', ''), # Passing 'all_states' and an empty string for selected_date
@@ -136,7 +140,6 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # Internationalization
-# https://docs.djangoproject.com/en/5.1/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
@@ -148,13 +151,12 @@ USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
 # Default primary key field type
-# https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
@@ -200,7 +202,6 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        # If any other third-party loggers are noisy (like 'requests'),
-        # can add them here similarly.
+        # If any other third-party loggers are noisy (like 'requests'), ill add here
     },
 }
