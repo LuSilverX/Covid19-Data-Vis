@@ -7,7 +7,7 @@ from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData, WHOData
 import logging
 from django.core.cache import cache
-from .tasks import fetch_cdc_data, fetch_who_data
+from .tasks import fetch_cdc_deaths_from_api_weekly, fetch_who_data
 
 logger = logging.getLogger(__name__)
 
@@ -253,9 +253,9 @@ def live_data(request):
             cdc_task_error = cache.get(cache_key)
             # On initial load, if data is missing and there's no cached error, trigger a Celery task.
             if selected_state and not is_ajax and not cdc_task_error:
-                logger.info(f"Queueing fetch_cdc_data task for {selected_state}.")
+                logger.info(f"Queueing fetch_cdc_deaths_from_api_weekly task for {selected_state}. (Option A: weekly)")
                 try:
-                    fetch_cdc_data.delay(selected_state, '')
+                    fetch_cdc_deaths_from_api_weekly.delay(selected_state)
                 except Exception as e:
                     logger.error(f"Error queueing fetch_cdc_data: {e}")
                     cdc_task_error = "Failed to start data fetch task."
@@ -410,6 +410,6 @@ def trigger_data_refresh(request):
     elif source == 'cdc':
         selected_state = request.POST.get('selected_state', 'all_states').lower()
         # Pass None for selected_date, assuming the task can handle it
-        task = fetch_cdc_data.delay(selected_state=selected_state, selected_date=None)
+        task = fetch_cdc_deaths_from_api_weekly.delay(selected_state=selected_state)
         return JsonResponse({'status': 'success', 'task_id': task.id, 'message': 'CDC data refresh started'})
     return JsonResponse({'status': 'error', 'message': 'Invalid source'}, status=400)

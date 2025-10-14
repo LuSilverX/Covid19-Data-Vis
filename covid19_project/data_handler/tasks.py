@@ -1,6 +1,7 @@
 import os
 import time
 import csv
+from collections import defaultdict
 from django.conf import settings
 import logging
 from io import StringIO
@@ -213,7 +214,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     return success # Returning status for this state
 
 
-# Main CDC Task
+# Old main CDC Task
 @shared_task(bind=True)
 def fetch_cdc_data(self, selected_state, selected_date):
     task_id = self.request.id
@@ -274,8 +275,144 @@ def fetch_cdc_data(self, selected_state, selected_date):
 
     if not overall_success:
         Exception(f"Task {task_id} failed to process {states_failed} CDC states.")
-        
 
+# New main CDC Task for NCHS Weekly Deaths       
+# Socrata CSV endpoint for:
+# "Provisional COVID-19 Death Counts by Week Ending Date and State" (NCHS)
+CDC_NCHS_DATASET_CSV = getattr(
+    settings,
+    "CDC_NCHS_DATASET_CSV",
+    "https://data.cdc.gov/resource/r8kw-7aab.csv"
+)
+
+def _parse_date(value: str):
+    """Parse YYYY-MM-DD or ISO strings like 2020-04-11T00:00:00.000 to date()."""
+    if not value:
+        return None
+    v = value.strip()
+    # If ISO with time, take date part
+    if "T" in v:
+        v = v.split("T", 1)[0]
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(v, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+@shared_task(bind=True)
+def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
+    """
+    OPTION A (current): Import *weekly* COVID-19 deaths from the NCHS dataset and store the
+    weekly value in CDCData.deaths_total for each (state, week_ending_date).
+
+    Should I later prefer cumulative instead, use OPTION B:
+      - Compute a running sum per state from weekly counts and store that cumulative
+        total into CDCData.deaths_total (no schema change required).
+
+    OPTION C (alternative): Store *both* weekly and cumulative.
+      - Add a new IntegerField CDCData.weekly_deaths via a migration.
+      - Save weekly_deaths = weekly value from the dataset.
+      - Save deaths_total  = cumulative (running sum) per state.
+      - Preserves weekly detail while still supporting cumulative displays.
+    """
+    task_id = self.request.id
+    logger.info(f"!!!!!!!!!! fetch_cdc_deaths_from_api_weekly START (ID: {task_id}) state={selected_state} !!!!!!!!!!!")
+
+    headers = {}
+    app_token = getattr(settings, "SOCRATA_APP_TOKEN", None)
+    if app_token:
+        headers["X-App-Token"] = app_token
+
+    params = {
+        "$limit": 500000,
+        "$order": "jurisdiction, week_ending_date",
+        "$select": "jurisdiction,week_ending_date,covid_19_deaths,data_as_of",
+    }
+
+    # If a single state was requested, filter to reduce payload.
+    # Accepts 'united states' as a valid jurisdiction name.
+    single = selected_state and selected_state.lower() not in ("all_states",)
+    if single:
+        # Socrata accepts simple equality via field=query param for CSV.
+        params["jurisdiction"] = selected_state.title()
+
+    try:
+        resp = requests.get(CDC_NCHS_DATASET_CSV, params=params, headers=headers, timeout=60)
+        resp.raise_for_status()
+    except Exception as e:
+        logger.error(f"Task {task_id}: Error fetching NCHS CSV: {e}")
+        return
+
+    reader = csv.DictReader(StringIO(resp.text))
+    if not reader.fieldnames:
+        logger.error(f"Task {task_id}: NCHS CSV missing header")
+        return
+
+    # If we’re importing all states, we may want to start clean.
+    if not single:
+        deleted, _ = CDCData.objects.all().delete()
+        logger.info(f"Task {task_id}: Cleared CDCData ({deleted} rows) before full import.")
+
+    rows_upserted = 0
+    per_week_us_sum = defaultdict(int)  # for building 'united states' if needed
+
+    for row in reader:
+        jurisdiction = (row.get("jurisdiction") or "").strip()
+        week_str = (row.get("week_ending_date") or "").strip()
+        das_str = (row.get("data_as_of") or "").strip()
+
+        if not jurisdiction or not week_str:
+            continue
+
+        # If user asked for one state, ignore others (CSV server-side filter *should* have done it)
+        if single and jurisdiction.lower() != selected_state.lower():
+            continue
+
+        week_date = _parse_date(week_str)
+        if not week_date:
+            continue
+
+        try:
+            weekly_deaths = int(str(row.get("covid_19_deaths", "0")).replace(",", "") or 0)
+        except (TypeError, ValueError):
+            weekly_deaths = 0
+
+        data_as_of = _parse_date(das_str)
+
+        # --- Option A decision point ---
+        # We store the weekly count into 'deaths_total' for now.
+        state_key = jurisdiction.lower()
+        CDCData.objects.update_or_create(
+            state=state_key,
+            date=week_date,
+            defaults={
+                "deaths_total": weekly_deaths,
+                "data_as_of": data_as_of
+            }
+        )
+        rows_upserted += 1
+
+        # If we are doing a full import (all states), tally for a US row
+        if not single and jurisdiction.lower() != "united states":
+            per_week_us_sum[week_date] += weekly_deaths
+
+    # If full import and the dataset didn’t provide a 'United States' jurisdiction,
+    # synthesize it by summing the states.
+    if not single:
+        for week_date, weekly_sum in per_week_us_sum.items():
+            CDCData.objects.update_or_create(
+                state="united states",
+                date=week_date,
+                defaults={
+                    "deaths_total": weekly_sum,
+                    "data_as_of": None
+                }
+            )
+            rows_upserted += 1
+
+    logger.info(f"Task {task_id}: Upserted ~{rows_upserted} weekly CDC rows (Option A).")
+    logger.info(f"!!!!!!!!!! fetch_cdc_deaths_from_api_weekly FINISHED (ID: {task_id}) !!!!!!!!!!!")
 
 # TASK for WHO Data 
 @shared_task(bind=True)
