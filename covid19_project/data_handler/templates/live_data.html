@@ -116,16 +116,17 @@ hr { margin: 40px 0; border: 0; border-top: 2px solid #007bff; }
 <div id="cdc-data-container" class="table-container">
 {% if cdc_data_exists %}
 <table id="cdc-data-table">
-<thead><tr><th>State</th><th>Date</th><th>Deaths (Weekly)</th></tr></thead>
+<thead><tr><th>State</th><th>Date</th><th>Deaths (Weekly)</th><th>Deaths (Cumulative)</th></tr></thead>
 <tbody id="cdc-data-tbody">
 {% for entry in us_data %}
 <tr>
 <td>{{ entry.state|title }}</td>
 <td>{{ entry.date|date:"M d, Y" }}</td>
+<td>{{ entry.weekly_deaths|default:"0" }}</td>
 <td>{% if entry.deaths_total == 0 %}0{% else %}{{ entry.deaths_total|default:"N/A" }}{% endif %}</td>
 </tr>
 {% empty %}
-<tr><td colspan="3" style="text-align:center;">No CDC data matches your filter.</td></tr>
+<tr><td colspan="4" style="text-align:center;">No CDC data matches your filter.</td></tr>
 {% endfor %}
 </tbody>
 </table>
@@ -278,10 +279,9 @@ function getDataSignature(dataset, objectList) {
 if (!objectList || objectList.length === 0) { return null; }
 const firstItem = objectList[0];
 if (dataset === 'cdc') {
-return `${firstItem.date}-${firstItem.deaths_total}`;
+return `${firstItem.date}-${firstItem.weekly_deaths}-${firstItem.deaths_total}`;
 } else if (dataset === 'who') {
-return `${firstItem.date_reported}-${firstItem.country}-${firstItem.cumulative_cases}-${firstItem.cumulative_deaths}`;
-}
+return `${firstItem.date_reported}-${firstItem.country}-${firstItem.cumulative_cases}-${firstItem.cumulative_deaths}`;}
 return null;
 }
 
@@ -365,7 +365,7 @@ container.hide();
 
 function renderTableRows(dataset, objectList) {
 let tableHtml = '';
-let colspan = dataset === 'cdc' ? 3 : 7;
+let colspan = dataset === 'cdc' ? 4 : 7;
 if (!objectList || objectList.length === 0) {
 return `<tr><td colspan="${colspan}" style="text-align:center;">No ${dataset.toUpperCase()} data matches your filter for this page.</td></tr>`;
 }
@@ -387,8 +387,9 @@ formattedDate = entry.date;
 }
 }
 const stateName = entry.state ? (entry.state.charAt(0).toUpperCase() + entry.state.slice(1)) : 'N/A';
-const deathsTotal = entry.deaths_total === 0 ? '0' : (entry.deaths_total != null ? entry.deaths_total : 'N/A');
-tableHtml += `<tr><td>${stateName}</td><td>${formattedDate}</td><td>${deathsTotal}</td></tr>`;
+const weekly = entry.weekly_deaths != null ? entry.weekly_deaths : '0';
+const cumulative = entry.deaths_total === 0 ? '0' : (entry.deaths_total != null ? entry.deaths_total : 'N/A');
+tableHtml += `<tr><td>${stateName}</td><td>${formattedDate}</td><td>${weekly}</td><td>${cumulative}</td></tr>`;
 } else { // WHO
 let formattedDate = 'N/A';
 if (entry.date_reported) {
@@ -445,7 +446,7 @@ function updateDisplayForDataset(dataset, data) {
         $(tbodyId).html(tableHtml);
     } catch(e) {
         console.error(`Error rendering table rows for ${dataset}:`, e);
-        const colspan = dataset === 'cdc' ? 3 : 7;
+        const colspan = dataset === 'cdc' ? 4 : 7;
         $(tbodyId).html(`<tr><td colspan="${colspan}" style="text-align:center;">Error displaying data. Check console.</td></tr>`);
     }
 
@@ -526,7 +527,7 @@ const paginationContainerId = `#${dataset}-pagination-container`;
 const dataContainerId = `#${dataset}-data-container`;
 const refreshButton = $(`.refresh-button[data-source='${dataset}']`);
 const statusSpan = $(`#${dataset}-refresh-status`);
-const colspan = dataset === 'cdc' ? 3 : 7;
+const colspan = dataset === 'cdc' ? 4 : 7;
 console.log(`Loading data for ${dataset}, page ${page}`);
 $(dataContainerId).find('.initial-loading-info, .error').remove();
 $(dataContainerId).find('table').show();
@@ -563,6 +564,7 @@ const initialCDCData = [
 {
 state: "{{ entry.state|escapejs }}",
 date: "{{ entry.date|date:'Y-m-d'|escapejs }}",
+weekly_deaths: {% if entry.weekly_deaths %}{{ entry.weekly_deaths }}{% else %}0{% endif %},
 deaths_total: {% if entry.deaths_total == 0 %}0{% elif entry.deaths_total %}{{ entry.deaths_total }}{% else %}null{% endif %}
 }{% if not forloop.last %},{% endif %}
 {% endfor %}

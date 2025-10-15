@@ -18,7 +18,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # load .env file
 load_dotenv(BASE_DIR / ".env")
 
-CDC_DOWNLOAD_DIR = BASE_DIR / 'cdc_downloads'
+CDC_DOWNLOAD_DIR = BASE_DIR / 'cdc_downloads' #Dormant because CDC changed its UI so no longer working
 
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'

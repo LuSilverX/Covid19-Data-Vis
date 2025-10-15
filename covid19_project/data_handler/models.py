@@ -44,6 +44,7 @@ class CovidUSData(models.Model):
 class CDCData(models.Model):
     state = models.CharField(max_length=100)
     date = models.DateField()
+    weekly_deaths = models.IntegerField(default=0)
     deaths_total = models.IntegerField(default=0)
     data_as_of = models.DateField(null=True, blank=True)
 

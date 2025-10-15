@@ -17,7 +17,7 @@ from .models import CDCData, WHOData
 
 logger = logging.getLogger(__name__)
 
-# Helper function for CDC scrape logic
+# Helper function for CDC scrape logic (Dormant because CDC changed UI so no longer working)
 def _scrape_and_save_state_data(state_key_to_process, state_codes):
     """Handles Selenium navigation, download, parsing, and saving for ONE CDC state."""
     if state_key_to_process not in state_codes:
@@ -214,7 +214,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     return success # Returning status for this state
 
 
-# Old main CDC Task because CDC changed its ui so no longer working
+# Old main CDC Task (Dormant because CDC changed its UI so no longer working)
 @shared_task(bind=True)
 def fetch_cdc_data(self, selected_state, selected_date):
     task_id = self.request.id
@@ -303,18 +303,16 @@ def _parse_date(value: str):
 @shared_task(bind=True)
 def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
     """
-    OPTION A (current): Import *weekly* COVID-19 deaths from the NCHS dataset and store the
-    weekly value in CDCData.deaths_total for each (state, week_ending_date).
+    Pull weekly COVID-19 deaths from CDC/NCHS (Socrata r8kw-7aab), compute per-state
+    cumulative totals, and upsert into CDCData.
 
-    Should I later prefer cumulative instead, use OPTION B:
-      - Compute a running sum per state from weekly counts and store that cumulative
-        total into CDCData.deaths_total (no schema change required).
-
-    OPTION C (alternative): Store *both* weekly and cumulative.
-      - Add a new IntegerField CDCData.weekly_deaths via a migration.
-      - Save weekly_deaths = weekly value from the dataset.
-      - Save deaths_total  = cumulative (running sum) per state.
-      - Preserves weekly detail while still supporting cumulative displays.
+    - Reads: state, week_ending_date, covid_19_deaths, data_as_of.
+    - For each state/week: weekly_deaths = covid_19_deaths; deaths_total = running sum.
+    - Upsert key: (state, date=week_ending_date).
+    - If importing all states: clears CDCData and synthesizes a 'united states' series
+    (weekly sum across states + cumulative).
+    - Filters to one state when selected_state not in {'all_states', 'united states'}.
+    - Idempotent (update_or_create); honors SOCRATA_APP_TOKEN and CDC_NCHS_DATASET_CSV settings.
     """
     task_id = self.request.id
     logger.info(f"!!!!!!!!!! fetch_cdc_deaths_from_api_weekly START (ID: {task_id}) state={selected_state} !!!!!!!!!!!")
@@ -356,6 +354,7 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
         logger.info(f"Task {task_id}: Cleared CDCData ({deleted} rows) before full import.")
 
     rows_upserted = 0
+    running_cum = defaultdict(int)
     per_week_us_sum = defaultdict(int)  # for building 'united states' if needed
 
     for row in reader:
@@ -380,39 +379,44 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
             weekly_deaths = 0
 
         data_as_of = _parse_date(das_str)
-
-        # --- Option A decision point ---
-        # We store the weekly count into 'deaths_total' for now.
         state_key = state_name.lower()
+
+        running_cum[state_key] += weekly_deaths
+        cumulative = running_cum[state_key]
         CDCData.objects.update_or_create(
             state=state_key,
             date=week_date,
             defaults={
-                "deaths_total": weekly_deaths,
+                "weekly_deaths": weekly_deaths,
+                "deaths_total": cumulative,  
                 "data_as_of": data_as_of
             }
         )
-        rows_upserted += 1
 
+        rows_upserted += 1
         # If we are doing a full import (all states), tally for a US row
-        if not single and state_name.lower() != "united states":
+        if not single and state_key != "united states":
             per_week_us_sum[week_date] += weekly_deaths
 
     # If full import and the dataset didn’t provide a 'United States' jurisdiction,
     # synthesize it by summing the states.
     if not single:
-        for week_date, weekly_sum in per_week_us_sum.items():
+        us_cum = 0
+        for week_date in sorted(per_week_us_sum.keys()):
+            weekly_sum = per_week_us_sum[week_date]
+            us_cum += weekly_sum
             CDCData.objects.update_or_create(
                 state="united states",
                 date=week_date,
                 defaults={
-                    "deaths_total": weekly_sum,
+                    "weekly_deaths": weekly_sum,
+                    "deaths_total":  us_cum,
                     "data_as_of": None
                 }
             )
             rows_upserted += 1
 
-    logger.info(f"Task {task_id}: Upserted ~{rows_upserted} weekly CDC rows (Option A).")
+    logger.info(f"Task {task_id}: Upserted ~{rows_upserted} weekly + cumulative CDC rows.")
     logger.info(f"!!!!!!!!!! fetch_cdc_deaths_from_api_weekly FINISHED (ID: {task_id}) !!!!!!!!!!!")
 
 # TASK for WHO Data 

@@ -254,7 +254,7 @@ def live_data(request):
             cdc_task_error = cache.get(cache_key)
             # On initial load, if data is missing and there's no cached error, trigger a Celery task.
             if selected_state and not is_ajax and not cdc_task_error:
-                logger.info(f"Queueing fetch_cdc_deaths_from_api_weekly task for {selected_state}. (Option A: weekly)")
+                logger.info(f"Queueing fetch_cdc_deaths_from_api_weekly task for {selected_state}. (weekly)")
                 try:
                     fetch_cdc_deaths_from_api_weekly.delay(selected_state)
                 except Exception as e:
@@ -319,7 +319,7 @@ def live_data(request):
             if ajax_target == 'cdc':
                 if us_data_page_obj:
                     # Serialize the object list and pagination state.
-                    object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
+                    object_list = list(us_data_page_obj.object_list.values('state', 'date', 'weekly_deaths', 'deaths_total'))
                     for item in object_list:
                          item_date = item.get('date')
                          item['date'] = item_date.strftime('%Y-%m-%d') if item_date else None
@@ -356,7 +356,7 @@ def live_data(request):
                  # If the data has arrived, include the first page in this response to avoid a second request.
                  if cdc_data_exists and us_data_page_obj:
                      logger.info("Data found during check_status poll, embedding payload.")
-                     object_list = list(us_data_page_obj.object_list.values('state', 'date', 'deaths_total'))
+                     object_list = list(us_data_page_obj.object_list.values('state', 'date', 'weekly_deaths', 'deaths_total'))
                      for item in object_list:
                          item_date = item.get('date')
                          item['date'] = item_date.strftime('%Y-%m-%d') if item_date else None
