@@ -214,7 +214,7 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     return success # Returning status for this state
 
 
-# Old main CDC Task
+# Old main CDC Task because CDC changed its ui so no longer working
 @shared_task(bind=True)
 def fetch_cdc_data(self, selected_state, selected_date):
     task_id = self.request.id
@@ -325,17 +325,18 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
         headers["X-App-Token"] = app_token
 
     params = {
-        "$limit": 500000,
-        "$order": "jurisdiction, week_ending_date",
-        "$select": "jurisdiction,week_ending_date,covid_19_deaths,data_as_of",
+        "$limit": 50000,
+        "$order": "state, week_ending_date",
+        "$select": "state,week_ending_date,covid_19_deaths,data_as_of",
     }
 
     # If a single state was requested, filter to reduce payload.
     # Accepts 'united states' as a valid jurisdiction name.
-    single = selected_state and selected_state.lower() not in ("all_states",)
+    single = selected_state and selected_state.lower() not in ("all_states", "united states")
     if single:
         # Socrata accepts simple equality via field=query param for CSV.
-        params["jurisdiction"] = selected_state.title()
+        wanted = selected_state.title()
+        params["$where"] = f"state='{wanted}'"
 
     try:
         resp = requests.get(CDC_NCHS_DATASET_CSV, params=params, headers=headers, timeout=60)
@@ -358,15 +359,15 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
     per_week_us_sum = defaultdict(int)  # for building 'united states' if needed
 
     for row in reader:
-        jurisdiction = (row.get("jurisdiction") or "").strip()
+        state_name = (row.get("state") or "").strip()
         week_str = (row.get("week_ending_date") or "").strip()
         das_str = (row.get("data_as_of") or "").strip()
 
-        if not jurisdiction or not week_str:
+        if not state_name or not week_str:
             continue
 
         # If user asked for one state, ignore others (CSV server-side filter *should* have done it)
-        if single and jurisdiction.lower() != selected_state.lower():
+        if single and state_name.lower() != selected_state.lower():
             continue
 
         week_date = _parse_date(week_str)
@@ -382,7 +383,7 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
 
         # --- Option A decision point ---
         # We store the weekly count into 'deaths_total' for now.
-        state_key = jurisdiction.lower()
+        state_key = state_name.lower()
         CDCData.objects.update_or_create(
             state=state_key,
             date=week_date,
@@ -394,7 +395,7 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
         rows_upserted += 1
 
         # If we are doing a full import (all states), tally for a US row
-        if not single and jurisdiction.lower() != "united states":
+        if not single and state_name.lower() != "united states":
             per_week_us_sum[week_date] += weekly_deaths
 
     # If full import and the dataset didn’t provide a 'United States' jurisdiction,

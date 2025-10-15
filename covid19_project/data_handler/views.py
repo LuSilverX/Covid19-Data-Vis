@@ -6,6 +6,7 @@ from django.http import JsonResponse, HttpResponseBadRequest
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from .models import CovidCountyData, CovidStateData, CovidUSData, CDCData, WHOData
 import logging
+from django.utils.text import slugify
 from django.core.cache import cache
 from .tasks import fetch_cdc_deaths_from_api_weekly, fetch_who_data
 
@@ -249,7 +250,7 @@ def live_data(request):
 
         if not cdc_data_exists:
             # Check cache for a recent task error to avoid re-triggering constantly.
-            cache_key = f"cdc_task_error_{selected_state}"
+            cache_key = f"cdc_task_error_{slugify(selected_state)}"
             cdc_task_error = cache.get(cache_key)
             # On initial load, if data is missing and there's no cached error, trigger a Celery task.
             if selected_state and not is_ajax and not cdc_task_error:
