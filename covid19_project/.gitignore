@@ -1,8 +1,1 @@
-
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
-
-# Local notes with secrets
-replacements*.txt
+.elasticbeanstalk/
