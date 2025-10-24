@@ -9,4 +9,16 @@ __pycache__/
 .idea/
 # Environment variables
 .env
-
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml
+# Local notes with secrets
+replacements*.txt
+#Legacy 
+cdc_downloads/
+#scheduler
+celerybeat-schedule.db
+celerybeat-schedule.db
+celerybeat-schedule
+celerybeat-*.db
