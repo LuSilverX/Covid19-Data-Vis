@@ -5,6 +5,7 @@
 <title>COVID-19 Live Data Dashboard</title>
 <style>
 /* --- CSS styles --- */
+.info:empty {display: none;}
 body { font-family: Arial, sans-serif; background-color: #eef2f3; margin: 0; padding: 20px; }
 .container { max-width: 1200px; width: 90%; margin: auto; background: #fff; padding: 20px; border-radius: 15px; box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.2); }
 h1, h2, h3 { text-align: center; color: #2c3e50; }
@@ -48,6 +49,9 @@ hr { margin: 40px 0; border: 0; border-top: 2px solid #007bff; }
 {# --- CDC Section --- #}
 <section id="cdc-dashboard">
 <h2>CDC US Dashboard</h2>
+<p class="info" style="margin-top:-10px;" text-align:left; ></p>
+  Source: CDC/NCHS 
+</p>
 <form method="get" action="{% url 'live_data_page' %}" id="cdc-filter-form">
 <label for="state">US State:</label>
 <select id="state" name="selected_state">
@@ -272,7 +276,7 @@ xhr.setRequestHeader("X-CSRFToken", csrftoken);
 
 // Helper Functions
 function showWaitInfo() {
-alert('This server uses scraping technology to retrieve data after the CDC stopped providing a reliable API for seamless data retrival after the pandemic ended. This process may take up to a minute.');
+alert(alert('We fetch weekly COVID-19 deaths from the CDC/NCHS API. The first load for a state can take a few seconds while the server imports and caches results.');
 }
 
 function getDataSignature(dataset, objectList) {

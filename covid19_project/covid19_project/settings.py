@@ -27,6 +27,8 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 
+SOCRATA_APP_TOKEN = os.getenv("SOCRATA_APP_TOKEN")
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY")
 if not SECRET_KEY:
@@ -93,8 +95,6 @@ CHANNEL_LAYERS = {
 
 # Database
 
-load_dotenv()
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -124,12 +124,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 CELERY_BEAT_SCHEDULE = {
-    'fetch-cdc-data-weekly': {
-        'task': 'data_handler.tasks.fetch_cdc_data',
-        'schedule': crontab(hour=0, minute=0, day_of_week='sunday'),
-        # Task will need a 'selected_state'. So made a way to tell it to update ALL states.
-        # Passing special value 'all_states'.
-        'args': ('all_states', ''), # Passing 'all_states' and an empty string for selected_date
+    "cdc_weekly_deaths_all_states": {
+        "task": "data_handler.tasks.fetch_cdc_deaths_from_api_weekly",
+        "schedule": crontab(hour=9, minute=0),  # every day at 9 a.m. UTC
+        "args": ("all_states",),
     },
     
     'fetch-who-data-weekly': {
