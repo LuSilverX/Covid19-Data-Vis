@@ -26,3 +26,6 @@ celerybeat-*.db
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Celery local state
+celerybeat-schedule.db
