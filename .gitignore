@@ -29,3 +29,5 @@ celerybeat-*.db
 
 # Celery local state
 celerybeat-schedule.db
+
+
