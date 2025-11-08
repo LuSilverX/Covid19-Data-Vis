@@ -73,7 +73,18 @@ python -c "import secrets, string; alphabet=string.ascii_letters+string.digits+'
 Open covid19_project/.env and replace placeholders:
 - DJANGO_SECRET_KEY → generate one (see below)
 - DB_USER, DB_PASSWORD → your local MySQL creds
-- (optional) SOCRATA_APP_TOKEN → add to avoid rate limits
+- SOCRATA_APP_TOKEN → add to avoid rate limits
+  
+### 🔑 Getting a Socrata App Token (for CDC Data API)
+1. Visit [https://data.cdc.gov](https://data.cdc.gov) and sign in (or create an account).  
+2. Click your profile icon → **Developer Settings**.  
+3. Under **App Tokens**, click **Create New App Token**.  
+4. Enter a name (e.g., *COVID-19 Dashboard*) and optional description → **Save**.  
+5. Copy the generated **App Token** (not the Secret Token).  
+6. Add it to your `.env` file under:  
+   ```bash
+   SOCRATA_APP_TOKEN=your_token_here
+   ```
 
 To generate a key:
 ```bash
