@@ -276,7 +276,7 @@ xhr.setRequestHeader("X-CSRFToken", csrftoken);
 
 // Helper Functions
 function showWaitInfo() {
-alert(alert('We fetch weekly COVID-19 deaths from the CDC/NCHS API. The first load for a state can take a few seconds while the server imports and caches results.');
+alert('We fetch weekly COVID-19 deaths from the CDC/NCHS API. The first load for a state can take a few seconds while the server imports and caches results.');
 }
 
 function getDataSignature(dataset, objectList) {
@@ -559,6 +559,35 @@ setTimeout(() => { statusSpan.text(''); }, 5000);
 
 // Event Handlers
 $(document).ready(function() {
+$('#cdc-filter-form').on('submit', function(e) {
+    // 1. STOP the browser from reloading the page!
+    e.preventDefault(); 
+    
+    // 2. Grab the new state the user selected
+    const newState = $('#state').val();
+    
+    // 3. Update our global tracker
+    currentFilters.selected_state = newState; 
+    
+    console.log("Dynamically filtering CDC data for:", newState);
+    
+    // 4. Fetch the new data silently in the background (starting at Page 1)
+    loadData('cdc', 1); 
+});
+
+$('#who-filter-form').on('submit', function(e) {
+    // 1. STOP the browser from reloading the page!
+    e.preventDefault(); 
+    
+    // 2. Grab the new filters
+    currentFilters.selected_country = $('#country').val();
+    currentFilters.selected_region = $('#region').val();
+    
+    console.log("Dynamically filtering WHO data...");
+    
+    // 3. Fetch the new data silently in the background (starting at Page 1)
+    loadData('who', 1); 
+});
 console.log("Document ready. Initializing.");
 // Initialize signatures
 {% if us_data and us_data.object_list %}

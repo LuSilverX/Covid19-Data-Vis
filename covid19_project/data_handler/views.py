@@ -177,7 +177,7 @@ def chart_data_api(request):
         if chart_data:
             return JsonResponse(chart_data)
         else:
-            # Ensure a meaningful error is returned if data processing fails.
+            # Ensuring a meaningful error is returned if data processing fails.
             if not error_message:
                 error_message = "Data formatting error or empty queryset."
                 status_code = 500 # Indicates an internal server issue.
@@ -193,7 +193,7 @@ def get_states_api(request):
     try:
         # Efficiently retrieve a unique list of states directly from the database.
         states = CovidStateData.objects.exclude(state__isnull=True).exclude(state__exact='').order_by('state').values_list('state', flat=True).distinct()
-        return JsonResponse(list(states), safe=False) # safe=False is required to serialize a list.
+        return JsonResponse(list(states), safe=False) 
     except Exception as e:
         logger.error(f"Error in get_states_api: {e}")
         return JsonResponse({'error': 'Could not retrieve states.'}, status=500)
@@ -223,7 +223,7 @@ def live_data(request):
     is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
     logger.info(f"Entering live_data view. AJAX: {is_ajax}")
 
-    # --- Ingest request parameters ---
+    # Ingest request parameters
     selected_state = request.GET.get('selected_state', 'united states').lower()
     selected_country = request.GET.get('selected_country', '')
     selected_region = request.GET.get('selected_region', '')
@@ -233,7 +233,7 @@ def live_data(request):
     us_page_num = request.GET.get('us_page', '1')
     global_page_num = request.GET.get('global_page', '1')
 
-    # --- Initialize context and data variables ---
+    # Initialize context and data variables
     us_data_page_obj = None
     global_data_page_obj = None
     who_country_list = []
@@ -241,7 +241,7 @@ def live_data(request):
     who_data_exists = False
     cdc_task_error = None
 
-    # --- CDC Data Processing (from local DB) ---
+    # CDC Data Processing (from local DB) 
     # This block runs for initial loads, CDC-targeted AJAX, or status checks.
     if not ajax_target or ajax_target == 'cdc' or is_check_status:
         logger.info(f"Processing CDC data logic for state: {selected_state}")
@@ -271,7 +271,7 @@ def live_data(request):
             except EmptyPage:
                 us_data_page_obj = cdc_paginator.page(cdc_paginator.num_pages)
 
-    # --- WHO Data Processing (from local DB) ---
+    # WHO Data Processing (from local DB)
     if not ajax_target or ajax_target == 'who':
         who_queryset = WHOData.objects.all()
 
@@ -300,7 +300,7 @@ def live_data(request):
         except EmptyPage:
             global_data_page_obj = who_paginator.page(who_paginator.num_pages) 
 
-    # --- Populate Country List for Dropdown --- 
+    # Populate Country List for Dropdown 
     # Only fetch this on the initial page load to populate the filter dropdown.
     if not is_ajax and who_data_exists:
          try:
@@ -310,12 +310,12 @@ def live_data(request):
             who_country_list = []
 
 
-    # --- Prepare response based on request type (AJAX vs. Full Render) ---
+    # Prepare response based on request type (AJAX vs. Full Render)
     if is_ajax:
         logger.info(f"Preparing AJAX response. Target: {ajax_target}, Check Status: {is_check_status}")
         response_data = {}
         try:
-            # --- AJAX: Paginate/Filter CDC Data ---
+            # AJAX: Paginate/Filter CDC Data
             if ajax_target == 'cdc':
                 if us_data_page_obj:
                     # Serialize the object list and pagination state.
@@ -333,7 +333,7 @@ def live_data(request):
                 response_data['cdc_data_exists'] = cdc_data_exists
                 response_data['cdc_task_error'] = cdc_task_error
 
-            # --- AJAX: Paginate/Filter WHO Data ---
+            # AJAX: Paginate/Filter WHO Data
             elif ajax_target == 'who':
                  if global_data_page_obj:
                      object_list = list(global_data_page_obj.object_list.values( 'date_reported', 'country', 'who_region', 'new_cases', 'cumulative_cases', 'new_deaths', 'cumulative_deaths' ))
@@ -348,7 +348,7 @@ def live_data(request):
                          'has_next': global_data_page_obj.has_next(),
                      }
 
-            # --- AJAX: Poll for Task Status --- 
+            # AJAX: Poll for Task Status 
             elif is_check_status:
                  logger.info(f"Handling check_status=true. Original Target: {ajax_target}")
                  # This polling mechanism checks if the background data fetch is complete.
@@ -410,7 +410,6 @@ def trigger_data_refresh(request):
         return JsonResponse({'status': 'success', 'task_id': task.id, 'message': 'WHO data refresh started'})
     elif source == 'cdc':
         selected_state = request.POST.get('selected_state', 'all_states').lower()
-        # Pass None for selected_date, assuming the task can handle it
         task = fetch_cdc_deaths_from_api_weekly.delay(selected_state=selected_state)
         return JsonResponse({'status': 'success', 'task_id': task.id, 'message': 'CDC data refresh started'})
     return JsonResponse({'status': 'error', 'message': 'Invalid source'}, status=400)
