@@ -85,19 +85,11 @@ Open covid19_project/.env and replace placeholders:
    ```bash
    SOCRATA_APP_TOKEN=your_token_here
    ```
-
-To generate a key:
-```bash
-# macOS/Linux
-python3 -c 'import secrets, string; alphabet=string.ascii_letters+string.digits+"!@#$%^&*(-_=+)"; print("".join(secrets.choice(alphabet) for _ in range(50)))'
-# Windows (PowerShell or CMD)
-$key = python -c 'import secrets, string; alphabet=string.ascii_letters+string.digits+"!@#$%^&*(-_=+)"; print("".join(secrets.choice(alphabet) for _ in range(50)))'
-```
 ### 3. Set Up Python Virtual Environment In Project Root
 ```bash
 Run from the repo root covid19-data-vis/ if not there already
 
-# macOS / Linux (run from the repo root Covid19-Data-Vis/ if not there already)
+# macOS / Linux 
 python3 -m venv .venv
 source .venv/bin/activate
 
