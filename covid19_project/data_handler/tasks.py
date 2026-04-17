@@ -17,7 +17,9 @@ from .models import CDCData, WHOData
 
 logger = logging.getLogger(__name__)
 
-# Helper function for CDC scrape logic (Dormant because CDC changed UI so no longer working)
+# Helper function for CDC scrape logic
+# ===== IMPORTANT =====
+# !!! DORMANT BECAUSE CDC CHANGED ITS UI IN A WAY THAT BROKE THIS SCRAPING LOGIC !!!
 def _scrape_and_save_state_data(state_key_to_process, state_codes):
     """Handles Selenium navigation, download, parsing, and saving for ONE CDC state."""
     if state_key_to_process not in state_codes:
@@ -214,7 +216,10 @@ def _scrape_and_save_state_data(state_key_to_process, state_codes):
     return success # Returning status for this state
 
 
-# Old main CDC Task (Dormant because CDC changed its UI so no longer working)
+# Old main CDC Task 
+# Helper function for CDC scrape logic
+# ===== IMPORTANT =====
+# !!! DORMANT BECAUSE CDC CHANGED ITS UI IN A WAY THAT BROKE THIS SCRAPING LOGIC !!!
 @shared_task(bind=True)
 def fetch_cdc_data(self, selected_state, selected_date):
     task_id = self.request.id
@@ -348,7 +353,7 @@ def fetch_cdc_deaths_from_api_weekly(self, selected_state="all_states"):
         logger.error(f"Task {task_id}: NCHS CSV missing header")
         return
 
-    # If we’re importing all states, we may want to start clean.
+    # If we’re importing all states, we start clean.
     if not single:
         deleted, _ = CDCData.objects.all().delete()
         logger.info(f"Task {task_id}: Cleared CDCData ({deleted} rows) before full import.")

@@ -228,7 +228,6 @@ def live_data(request):
     selected_country = request.GET.get('selected_country', '')
     selected_region = request.GET.get('selected_region', '')
     ajax_target = request.GET.get('target') if is_ajax else None
-    is_check_status = request.GET.get('check_status') == 'true'
 
     us_page_num = request.GET.get('us_page', '1')
     global_page_num = request.GET.get('global_page', '1')
@@ -242,8 +241,8 @@ def live_data(request):
     cdc_task_error = None
 
     # CDC Data Processing (from local DB) 
-    # This block runs for initial loads, CDC-targeted AJAX, or status checks.
-    if not ajax_target or ajax_target == 'cdc' or is_check_status:
+    # This block runs for initial loads, CDC-targeted AJAX.
+    if not ajax_target or ajax_target == 'cdc':
         logger.info(f"Processing CDC data logic for state: {selected_state}")
         us_queryset = CDCData.objects.filter(state__iexact=selected_state)
         cdc_data_exists = us_queryset.exists()
@@ -262,7 +261,7 @@ def live_data(request):
                     cdc_task_error = "Failed to start data fetch task."
 
         # Paginate only if data exists or if it's an AJAX request needing a (potentially empty) page object.
-        if cdc_data_exists or (is_ajax and ajax_target == 'cdc'):
+        if cdc_data_exists or ajax_target == 'cdc':
             cdc_paginator = Paginator(us_queryset, 10)
             try:
                 us_data_page_obj = cdc_paginator.page(us_page_num)
@@ -312,7 +311,7 @@ def live_data(request):
 
     # Prepare response based on request type (AJAX vs. Full Render)
     if is_ajax:
-        logger.info(f"Preparing AJAX response. Target: {ajax_target}, Check Status: {is_check_status}")
+        logger.info(f"Preparing AJAX response. Target: {ajax_target}")
         response_data = {}
         try:
             # AJAX: Paginate/Filter CDC Data
@@ -348,27 +347,8 @@ def live_data(request):
                          'has_next': global_data_page_obj.has_next(),
                      }
 
-            # AJAX: Poll for Task Status 
-            elif is_check_status:
-                 logger.info(f"Handling check_status=true. Original Target: {ajax_target}")
-                 # This polling mechanism checks if the background data fetch is complete.
-                 response_data = {'cdc_data_exists': cdc_data_exists, 'cdc_task_error': cdc_task_error}
-                 # If the data has arrived, include the first page in this response to avoid a second request.
-                 if cdc_data_exists and us_data_page_obj:
-                     logger.info("Data found during check_status poll, embedding payload.")
-                     object_list = list(us_data_page_obj.object_list.values('state', 'date', 'weekly_deaths', 'deaths_total'))
-                     for item in object_list:
-                         item_date = item.get('date')
-                         item['date'] = item_date.strftime('%Y-%m-%d') if item_date else None
-                     response_data['us_data'] = {
-                          'object_list': object_list,
-                          'current_page': us_data_page_obj.number,
-                          'total_pages': us_data_page_obj.paginator.num_pages,
-                          'has_previous': us_data_page_obj.has_previous(),
-                          'has_next': us_data_page_obj.has_next(),
-                      }
             else:
-                 logger.warning(f"AJAX request with unhandled parameters. Target: {ajax_target}, Check Status: {is_check_status}")
+                 logger.warning(f"AJAX request with unhandled parameters. Target: {ajax_target}")
                  response_data = {'error': 'Invalid AJAX request parameters'}
 
             return JsonResponse(response_data)
@@ -377,7 +357,7 @@ def live_data(request):
             logger.error(f"Exception during AJAX response preparation: {e}", exc_info=True)
             return JsonResponse({'error': 'An internal server error occurred during AJAX processing.'}, status=500)
 
-    else: # --- Full Page Render ---
+    else: # Full Page Render
         context = {
             'selected_state': selected_state,
             'selected_country': selected_country,
