@@ -30,4 +30,6 @@ celerybeat-*.db
 # Celery local state
 celerybeat-schedule.db
 
+# Generated Django static assets
+covid19_project/staticfiles/
 
